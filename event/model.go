@@ -15,29 +15,29 @@ type Event struct {
 	Metadata  map[string]interface{} `json:"metadata"`  // 元数据
 }
 
-// EventHandler 事件处理器接口
-type EventHandler interface {
+// Handler 事件处理器接口
+type Handler interface {
 	Handle(ctx context.Context, event Event) error
 	CanHandle(eventType string) bool
 }
 
 // AsyncEventHandler 异步事件处理器接口
 type AsyncEventHandler interface {
-	EventHandler
+	Handler
 	HandleAsync(ctx context.Context, event Event) <-chan error
 }
 
-// EventFilter 事件过滤器
-type EventFilter func(event Event) bool
+// Filter 事件过滤器
+type Filter func(event Event) bool
 
 // Subscription 订阅信息
 type Subscription struct {
-	Id        string       `json:"id"`         // 订阅ID
-	EventType string       `json:"event_type"` // 订阅的事件类型
-	Handler   EventHandler `json:"-"`          // 事件处理器（不序列化）
-	Filter    EventFilter  `json:"-"`          // 事件过滤器（不序列化）
-	CreatedAt time.Time    `json:"created_at"` // 订阅创建时间
-	IsActive  bool         `json:"is_active"`  // 是否激活
+	Id        string    `json:"id"`         // 订阅ID
+	EventType string    `json:"event_type"` // 订阅的事件类型
+	Handler   Handler   `json:"-"`          // 事件处理器（不序列化）
+	Filter    Filter    `json:"-"`          // 事件过滤器（不序列化）
+	CreatedAt time.Time `json:"created_at"` // 订阅创建时间
+	IsActive  bool      `json:"is_active"`  // 是否激活
 }
 
 // NewEvent 创建新事件

@@ -36,7 +36,7 @@ func TestEvent(t *testing.T) {
 
 // TestEventManager 测试事件管理器
 func TestEventManager(t *testing.T) {
-	em := NewEventManager(2)
+	em := NewManager(2)
 
 	// 测试启动和停止
 	if err := em.Start(); err != nil {
@@ -50,7 +50,7 @@ func TestEventManager(t *testing.T) {
 
 // TestSubscribeAndPublish 测试订阅和发布
 func TestSubscribeAndPublish(t *testing.T) {
-	em := NewEventManager(2)
+	em := NewManager(2)
 	if err := em.Start(); err != nil {
 		t.Fatalf("Failed to start event manager: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestSubscribeAndPublish(t *testing.T) {
 
 // TestSyncPublish 测试同步发布
 func TestSyncPublish(t *testing.T) {
-	em := NewEventManager(2)
+	em := NewManager(2)
 	if err := em.Start(); err != nil {
 		t.Fatalf("Failed to start event manager: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestSyncPublish(t *testing.T) {
 
 // TestEventFilter 测试事件过滤器
 func TestEventFilter(t *testing.T) {
-	em := NewEventManager(2)
+	em := NewManager(2)
 	if err := em.Start(); err != nil {
 		t.Fatalf("Failed to start event manager: %v", err)
 	}
@@ -228,35 +228,51 @@ func TestEventFilter(t *testing.T) {
 	mutex.Unlock()
 }
 
-// TestBuiltinHandlers 测试内置处理器
-func TestBuiltinHandlers(t *testing.T) {
-	// 测试日志处理器
-	logHandler := NewLoggingHandler("info", "[测试]")
-	testEvent := NewEvent("test.log", "test", "log test data")
+// TestFunctionHandler 测试函数处理器
+func TestFunctionHandler(t *testing.T) {
+	var handledEvent Event
+	var handled bool
 
+	// 创建函数处理器
+	functionHandler := NewFunctionHandler(
+		"测试处理器",
+		func(ctx context.Context, event Event) error {
+			handled = true
+			handledEvent = event
+			return nil
+		},
+		func(eventType string) bool {
+			return eventType == "test.function"
+		},
+	)
+
+	testEvent := NewEvent("test.function", "test", "function test data")
 	ctx := context.Background()
-	if err := logHandler.Handle(ctx, testEvent); err != nil {
-		t.Errorf("Logging handler failed: %v", err)
+
+	if err := functionHandler.Handle(ctx, testEvent); err != nil {
+		t.Errorf("Function handler failed: %v", err)
 	}
 
-	if !logHandler.CanHandle("any.event") {
-		t.Error("Logging handler should handle any event type")
+	if !handled {
+		t.Error("Function handler should have handled the event")
 	}
 
-	// 测试邮件处理器
-	emailHandler := NewEmailHandler([]string{"test@example.com"}, "Test Subject", "test.email")
-	emailEvent := NewEvent("test.email", "test", "email test data")
-
-	if err := emailHandler.Handle(ctx, emailEvent); err != nil {
-		t.Errorf("Email handler failed: %v", err)
+	if handledEvent.Id != testEvent.Id {
+		t.Errorf("Expected event ID %s, got %s", testEvent.Id, handledEvent.Id)
 	}
 
-	if !emailHandler.CanHandle("test.email") {
-		t.Error("Email handler should handle test.email events")
+	if !functionHandler.CanHandle("test.function") {
+		t.Error("Function handler should handle test.function events")
 	}
 
-	if emailHandler.CanHandle("other.event") {
-		t.Error("Email handler should not handle other.event events")
+	if functionHandler.CanHandle("other.event") {
+		t.Error("Function handler should not handle other.event events")
+	}
+
+	// 测试处理器名称为空时的错误处理
+	emptyHandler := NewFunctionHandler("空处理器", nil, nil)
+	if err := emptyHandler.Handle(ctx, testEvent); err == nil {
+		t.Error("Empty function handler should return error")
 	}
 }
 
@@ -328,7 +344,7 @@ func (h *TestHandler) CanHandle(eventType string) bool {
 
 // TestStats 测试统计信息
 func TestStats(t *testing.T) {
-	em := NewEventManager(3)
+	em := NewManager(3)
 
 	// 订阅几个事件
 	testHandler := &TestHandler{}

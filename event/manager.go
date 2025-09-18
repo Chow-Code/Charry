@@ -9,10 +9,10 @@ import (
 	"charry/logger"
 )
 
-// EventManager 事件管理器
-type EventManager struct {
+// Manager 事件管理器
+type Manager struct {
 	subscriptions map[string]map[string]*Subscription // eventType -> subscriptionId -> subscription
-	handlers      map[string][]EventHandler           // eventType -> handlers
+	handlers      map[string][]Handler                // eventType -> handlers
 	mutex         sync.RWMutex
 	eventChan     chan Event
 	workerPool    int
@@ -22,13 +22,13 @@ type EventManager struct {
 	wg            sync.WaitGroup
 }
 
-// NewEventManager 创建新的事件管理器
-func NewEventManager(workerPoolSize int) *EventManager {
+// NewManager 创建新的事件管理器
+func NewManager(workerPoolSize int) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &EventManager{
+	return &Manager{
 		subscriptions: make(map[string]map[string]*Subscription),
-		handlers:      make(map[string][]EventHandler),
+		handlers:      make(map[string][]Handler),
 		eventChan:     make(chan Event, 1000), // 缓冲区大小为1000
 		workerPool:    workerPoolSize,
 		ctx:           ctx,
@@ -38,7 +38,7 @@ func NewEventManager(workerPoolSize int) *EventManager {
 }
 
 // Start 启动事件管理器
-func (em *EventManager) Start() error {
+func (em *Manager) Start() error {
 	em.mutex.Lock()
 	defer em.mutex.Unlock()
 
@@ -59,7 +59,7 @@ func (em *EventManager) Start() error {
 }
 
 // Stop 停止事件管理器
-func (em *EventManager) Stop() error {
+func (em *Manager) Stop() error {
 	em.mutex.Lock()
 	defer em.mutex.Unlock()
 
@@ -77,7 +77,7 @@ func (em *EventManager) Stop() error {
 }
 
 // Subscribe 订阅事件
-func (em *EventManager) Subscribe(eventType string, handler EventHandler, filters ...EventFilter) (string, error) {
+func (em *Manager) Subscribe(eventType string, handler Handler, filters ...Filter) (string, error) {
 	em.mutex.Lock()
 	defer em.mutex.Unlock()
 
@@ -112,7 +112,7 @@ func (em *EventManager) Subscribe(eventType string, handler EventHandler, filter
 }
 
 // Unsubscribe 取消订阅
-func (em *EventManager) Unsubscribe(subscriptionId string) error {
+func (em *Manager) Unsubscribe(subscriptionId string) error {
 	em.mutex.Lock()
 	defer em.mutex.Unlock()
 
@@ -147,7 +147,7 @@ func (em *EventManager) Unsubscribe(subscriptionId string) error {
 }
 
 // Publish 发布事件（异步）
-func (em *EventManager) Publish(event Event) error {
+func (em *Manager) Publish(event Event) error {
 	if !em.running {
 		return fmt.Errorf("事件管理器尚未启动")
 	}
@@ -166,7 +166,7 @@ func (em *EventManager) Publish(event Event) error {
 }
 
 // PublishSync 同步发布事件
-func (em *EventManager) PublishSync(ctx context.Context, event Event) error {
+func (em *Manager) PublishSync(ctx context.Context, event Event) error {
 	em.mutex.RLock()
 	subscriptions := em.subscriptions[event.Type]
 	em.mutex.RUnlock()
@@ -206,7 +206,7 @@ func (em *EventManager) PublishSync(ctx context.Context, event Event) error {
 }
 
 // worker 工作协程
-func (em *EventManager) worker(workerId int) {
+func (em *Manager) worker(workerId int) {
 	defer em.wg.Done()
 
 	logger.Debug("事件处理器worker已启动", "workerId", workerId)
@@ -229,7 +229,7 @@ func (em *EventManager) worker(workerId int) {
 }
 
 // handleEvent 处理事件
-func (em *EventManager) handleEvent(event Event) {
+func (em *Manager) handleEvent(event Event) {
 	em.mutex.RLock()
 	subscriptions := em.subscriptions[event.Type]
 	em.mutex.RUnlock()
@@ -276,7 +276,7 @@ func (em *EventManager) handleEvent(event Event) {
 }
 
 // GetSubscriptions 获取所有订阅信息
-func (em *EventManager) GetSubscriptions() map[string][]*Subscription {
+func (em *Manager) GetSubscriptions() map[string][]*Subscription {
 	em.mutex.RLock()
 	defer em.mutex.RUnlock()
 
@@ -291,7 +291,7 @@ func (em *EventManager) GetSubscriptions() map[string][]*Subscription {
 }
 
 // GetStats 获取统计信息
-func (em *EventManager) GetStats() map[string]interface{} {
+func (em *Manager) GetStats() map[string]interface{} {
 	em.mutex.RLock()
 	defer em.mutex.RUnlock()
 

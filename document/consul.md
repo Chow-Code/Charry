@@ -20,13 +20,17 @@
 ### 1. 设置环境变量
 
 ```bash
-# 必需：Consul 服务器地址
+# 应用配置（可选，有默认值）
+export APP_ID="1"                     # 默认 1
+export APP_HOST="192.168.30.10"       # 默认 0.0.0.0
+export APP_PORT="50051"               # 默认 50051
+
+# Consul 配置
 export CONSUL_ADDRESS="192.168.30.230:8500"
 
 # 可选配置（有默认值）
 export CONSUL_DATACENTER="dc1"
-export CONSUL_HEALTH_CHECK_INTERVAL="10s"
-export CONSUL_HEALTH_CHECK_TIMEOUT="5s"
+export CONSUL_HEALTH_CHECK_TYPE="tcp"
 ```
 
 ### 2. 在代码中使用
@@ -44,15 +48,12 @@ import (
 )
 
 func main() {
-    // 1. 准备应用配置
+    // 1. 创建应用配置
     appConfig := &config.AppConfig{
-        Id:          1,
-        Type:        "api-server",
-        Environment: "prod",
-        Addr: config.Addr{
-            Host: "192.168.30.10",
-            Port: 8080,
-        },
+        Id:          config.LoadIdFromEnv(),      // 从环境变量加载
+        Type:        "api-server",                 // 代码中设置
+        Environment: "prod",                       // 代码中设置
+        Addr:        config.LoadAddrFromEnv(),    // 从环境变量加载
         Metadata: map[string]any{
             "version": "1.0.0",
         },

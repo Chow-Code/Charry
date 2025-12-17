@@ -2,9 +2,9 @@ package consul
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/charry/config"
+	"github.com/charry/logger"
 )
 
 // RegisterFromEnv 从环境变量创建 Consul 客户端并注册服务
@@ -16,20 +16,20 @@ func RegisterFromEnv(appConfig *config.AppConfig) (*Client, error) {
 	// 创建 Consul 客户端
 	client, err := NewClient(consulConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create consul client: %w", err)
+		return nil, fmt.Errorf("创建 Consul 客户端失败: %w", err)
 	}
 
 	// 测试连接
 	if err := client.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to connect to consul: %w", err)
+		return nil, fmt.Errorf("连接 Consul 失败: %w", err)
 	}
 
 	// 注册服务
 	if err := client.RegisterService(appConfig); err != nil {
-		return nil, fmt.Errorf("failed to register service: %w", err)
+		return nil, fmt.Errorf("注册服务失败: %w", err)
 	}
 
-	log.Printf("Service registered successfully: %s-%s-%d", 
+	logger.Infof("服务注册成功: %s-%s-%d", 
 		appConfig.Type, appConfig.Environment, appConfig.Id)
 
 	return client, nil
@@ -39,7 +39,7 @@ func RegisterFromEnv(appConfig *config.AppConfig) (*Client, error) {
 func MustRegisterFromEnv(appConfig *config.AppConfig) *Client {
 	client, err := RegisterFromEnv(appConfig)
 	if err != nil {
-		panic(fmt.Sprintf("failed to register service to consul: %v", err))
+		panic(fmt.Sprintf("注册服务到 Consul 失败: %v", err))
 	}
 	return client
 }
@@ -47,9 +47,9 @@ func MustRegisterFromEnv(appConfig *config.AppConfig) *Client {
 // GracefulShutdown 优雅关闭时注销服务
 func (c *Client) GracefulShutdown(appConfig *config.AppConfig) {
 	if err := c.DeregisterService(appConfig); err != nil {
-		log.Printf("Failed to deregister service: %v", err)
+		logger.Errorf("注销服务失败: %v", err)
 	} else {
-		log.Printf("Service deregistered successfully: %s-%s-%d",
+		logger.Infof("服务注销成功: %s-%s-%d",
 			appConfig.Type, appConfig.Environment, appConfig.Id)
 	}
 }

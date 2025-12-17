@@ -22,14 +22,24 @@ package main
 
 import (
     "log"
+    "github.com/charry/config"
     "github.com/charry/rpc"
 )
 
 func main() {
-    // 创建 gRPC 服务器
-    server, err := rpc.NewServer(
-        rpc.WithPort(50051),
-    )
+    // 创建应用配置
+    appConfig := &config.AppConfig{
+        Id:          1,
+        Type:        "my-service",
+        Environment: "dev",
+        Addr: config.Addr{
+            Host: "0.0.0.0",
+            Port: 50051,
+        },
+    }
+
+    // 创建 gRPC 服务器（使用默认 RPC 配置）
+    server, err := rpc.NewServer(nil, appConfig)
     if err != nil {
         log.Fatal(err)
     }
@@ -74,11 +84,10 @@ func main() {
         },
     }
 
-    // 创建服务器并注册到 Consul（一步完成）
-    server, err := rpc.NewServerWithConsul(
-        appConfig,
-        rpc.WithPort(appConfig.Addr.Port),
-    )
+    // 创建服务器并注册到 Consul
+    // 第一个参数：RPC 配置（nil = 使用默认配置）
+    // 第二个参数：应用配置（自动使用其中的 Addr）
+    server, err := rpc.NewServerWithConsul(nil, appConfig)
     if err != nil {
         log.Fatal(err)
     }
@@ -106,36 +115,51 @@ func main() {
 
 ### 创建服务器
 
-#### `NewServer(opts ...ServerOption) (*Server, error)`
+#### `NewServer(rpcConfig *RpcConfig, appConfig *AppConfig) (*Server, error)`
 
 创建一个新的 gRPC 服务器。
 
-**选项：**
-- `WithHost(host string)` - 设置监听主机（默认 "0.0.0.0"）
-- `WithPort(port int)` - 设置监听端口（默认 50051）
-- `WithGRPCOptions(opts ...grpc.ServerOption)` - 设置 gRPC 选项
+**参数：**
+- `rpcConfig`: RPC 配置（可传 `nil` 使用默认配置）
+- `appConfig`: 应用配置（自动使用其中的 `Addr`）
 
 **示例：**
 ```go
-server, err := rpc.NewServer(
-    rpc.WithHost("0.0.0.0"),
-    rpc.WithPort(50051),
-    rpc.WithGRPCOptions(
+// 使用默认 RPC 配置
+appConfig := &config.AppConfig{
+    Addr: config.Addr{Host: "0.0.0.0", Port: 50051},
+}
+server, err := rpc.NewServer(nil, appConfig)
+
+// 使用自定义 RPC 配置
+rpcConfig := &rpc.RpcConfig{
+    GrpcOptions: []grpc.ServerOption{
         grpc.MaxRecvMsgSize(10 * 1024 * 1024), // 10MB
-    ),
-)
+    },
+}
+server, err := rpc.NewServer(rpcConfig, appConfig)
 ```
 
-#### `NewServerWithConsul(appConfig *config.AppConfig, opts ...ServerOption) (*ServerWithConsul, error)`
+#### `NewServerWithConsul(rpcConfig *RpcConfig, appConfig *AppConfig) (*ServerWithConsul, error)`
 
 创建 gRPC 服务器并注册到 Consul。
 
+**参数：**
+- `rpcConfig`: RPC 配置（可传 `nil` 使用默认配置）
+- `appConfig`: 应用配置（自动使用其中的 `Addr`）
+
 **示例：**
 ```go
-server, err := rpc.NewServerWithConsul(
-    appConfig,
-    rpc.WithPort(50051),
-)
+// 使用默认配置
+server, err := rpc.NewServerWithConsul(nil, appConfig)
+
+// 使用自定义配置
+rpcConfig := &rpc.RpcConfig{
+    GrpcOptions: []grpc.ServerOption{
+        grpc.MaxRecvMsgSize(10 * 1024 * 1024),
+    },
+}
+server, err := rpc.NewServerWithConsul(rpcConfig, appConfig)
 ```
 
 ### 服务器操作
@@ -179,7 +203,11 @@ pb.RegisterUserServiceServer(grpcServer, &userServiceImpl{})
 
 ```go
 func main() {
-    server, _ := rpc.NewServer(rpc.WithPort(50051))
+    appConfig := &config.AppConfig{
+        Addr: config.Addr{Host: "0.0.0.0", Port: 50051},
+    }
+    
+    server, _ := rpc.NewServer(nil, appConfig)
     
     // 注册服务
     pb.RegisterGreeterServer(server.GetGRPCServer(), &greeterImpl{})
@@ -193,7 +221,11 @@ func main() {
 
 ```go
 func main() {
-    server, _ := rpc.NewServer(rpc.WithPort(50051))
+    appConfig := &config.AppConfig{
+        Addr: config.Addr{Host: "0.0.0.0", Port: 50051},
+    }
+    
+    server, _ := rpc.NewServer(nil, appConfig)
     
     // 注册服务
     pb.RegisterUserServiceServer(server.GetGRPCServer(), &userServiceImpl{})
@@ -222,7 +254,7 @@ func main() {
     }
     
     // 创建并注册到 Consul
-    server, _ := rpc.NewServerWithConsul(appConfig)
+    server, _ := rpc.NewServerWithConsul(nil, appConfig)
     
     // 注册业务服务
     pb.RegisterUserServiceServer(server.GetGRPCServer(), &userServiceImpl{})
@@ -242,7 +274,11 @@ func main() {
 
 ```go
 func main() {
-    server, _ := rpc.NewServer(rpc.WithPort(50051))
+    appConfig := &config.AppConfig{
+        Addr: config.Addr{Host: "0.0.0.0", Port: 50051},
+    }
+    
+    server, _ := rpc.NewServer(nil, appConfig)
     
     // 注册多个服务
     pb.RegisterUserServiceServer(server.GetGRPCServer(), &userServiceImpl{})
@@ -263,26 +299,40 @@ func main() {
 import (
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials"
+    
+    "github.com/charry/config"
+    "github.com/charry/rpc"
 )
 
-// TLS 配置
-creds, _ := credentials.NewServerTLSFromFile("server.crt", "server.key")
+func main() {
+    // TLS 配置
+    creds, _ := credentials.NewServerTLSFromFile("server.crt", "server.key")
 
-// 拦截器
-unaryInterceptor := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-    log.Printf("Calling: %s", info.FullMethod)
-    return handler(ctx, req)
+    // 拦截器
+    unaryInterceptor := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+        log.Printf("Calling: %s", info.FullMethod)
+        return handler(ctx, req)
+    }
+
+    // 创建 RPC 配置
+    rpcConfig := &rpc.RpcConfig{
+        GrpcOptions: []grpc.ServerOption{
+            grpc.Creds(creds),                      // TLS
+            grpc.UnaryInterceptor(unaryInterceptor), // 拦截器
+            grpc.MaxRecvMsgSize(10 * 1024 * 1024),  // 最大接收
+            grpc.MaxSendMsgSize(10 * 1024 * 1024),  // 最大发送
+        },
+    }
+
+    // 创建应用配置
+    appConfig := &config.AppConfig{
+        Addr: config.Addr{Host: "0.0.0.0", Port: 50051},
+    }
+
+    // 创建服务器
+    server, _ := rpc.NewServer(rpcConfig, appConfig)
+    server.Start()
 }
-
-server, _ := rpc.NewServer(
-    rpc.WithPort(50051),
-    rpc.WithGRPCOptions(
-        grpc.Creds(creds),                    // TLS
-        grpc.UnaryInterceptor(unaryInterceptor), // 拦截器
-        grpc.MaxRecvMsgSize(10 * 1024 * 1024),  // 最大接收消息大小
-        grpc.MaxSendMsgSize(10 * 1024 * 1024),  // 最大发送消息大小
-    ),
-)
 ```
 
 

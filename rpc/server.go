@@ -2,9 +2,10 @@ package rpc
 
 import (
 	"fmt"
-	"log"
 	"net"
 
+	"github.com/charry/config"
+	"github.com/charry/logger"
 	"google.golang.org/grpc"
 )
 
@@ -12,30 +13,36 @@ import (
 type Server struct {
 	grpcServer *grpc.Server
 	listener   net.Listener
-	options    *ServerOptions
+	addr       config.Addr
 }
 
 // NewServer 创建一个新的 gRPC 服务器
-func NewServer(opts ...ServerOption) (*Server, error) {
-	options := defaultServerOptions()
-	for _, opt := range opts {
-		opt(options)
+// rpcConfig: RPC 配置（可选，传 nil 则使用默认配置）
+// appConfig: 应用配置（使用其中的 Addr）
+func NewServer(rpcConfig *RpcConfig, appConfig *config.AppConfig) (*Server, error) {
+	if appConfig == nil {
+		return nil, fmt.Errorf("appConfig is nil")
+	}
+
+	// 使用默认配置（如果未提供）
+	if rpcConfig == nil {
+		rpcConfig = NewDefaultRpcConfig()
 	}
 
 	// 创建 gRPC 服务器
-	grpcServer := grpc.NewServer(options.grpcOptions...)
+	grpcServer := grpc.NewServer(rpcConfig.GrpcOptions...)
 
 	// 创建监听器
-	addr := fmt.Sprintf("%s:%d", options.host, options.port)
+	addr := fmt.Sprintf("%s:%d", appConfig.Addr.Host, appConfig.Addr.Port)
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to listen on %s: %w", addr, err)
+		return nil, fmt.Errorf("监听地址 %s 失败: %w", addr, err)
 	}
 
 	return &Server{
 		grpcServer: grpcServer,
 		listener:   lis,
-		options:    options,
+		addr:       appConfig.Addr,
 	}, nil
 }
 
@@ -48,10 +55,10 @@ func (s *Server) GetGRPCServer() *grpc.Server {
 // Start 启动 gRPC 服务器
 func (s *Server) Start() error {
 	addr := s.listener.Addr().String()
-	log.Printf("Starting gRPC server on %s", addr)
+	logger.Infof("启动 gRPC 服务器: %s", addr)
 
 	if err := s.grpcServer.Serve(s.listener); err != nil {
-		return fmt.Errorf("failed to serve: %w", err)
+		return fmt.Errorf("启动服务失败: %w", err)
 	}
 
 	return nil
@@ -61,14 +68,14 @@ func (s *Server) Start() error {
 func (s *Server) StartAsync() {
 	go func() {
 		if err := s.Start(); err != nil {
-			log.Printf("gRPC server error: %v", err)
+			logger.Errorf("gRPC 服务器错误: %v", err)
 		}
 	}()
 }
 
 // Stop 停止 gRPC 服务器（优雅关闭）
 func (s *Server) Stop() {
-	log.Println("Stopping gRPC server...")
+	logger.Info("正在停止 gRPC 服务器...")
 	s.grpcServer.GracefulStop()
 }
 
@@ -84,6 +91,10 @@ func (s *Server) GetAddress() string {
 
 // GetPort 获取服务器监听端口
 func (s *Server) GetPort() int {
-	return s.options.port
+	return s.addr.Port
 }
 
+// GetAddr 获取服务器监听地址配置
+func (s *Server) GetAddr() config.Addr {
+	return s.addr
+}

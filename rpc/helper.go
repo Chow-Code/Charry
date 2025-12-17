@@ -15,18 +15,19 @@ type ServerWithConsul struct {
 }
 
 // NewServerWithConsul 创建 gRPC 服务器并注册到 Consul
-// 这是一个便捷方法，整合了 gRPC 服务器创建和 Consul 注册
-func NewServerWithConsul(appConfig *config.AppConfig, opts ...ServerOption) (*ServerWithConsul, error) {
+// rpcConfig: RPC 配置（可选，传 nil 则使用默认配置）
+// appConfig: 应用配置（使用其中的 Addr，并注册到 Consul）
+func NewServerWithConsul(rpcConfig *RpcConfig, appConfig *config.AppConfig) (*ServerWithConsul, error) {
 	// 创建 gRPC 服务器
-	server, err := NewServer(opts...)
+	server, err := NewServer(rpcConfig, appConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
+		return nil, fmt.Errorf("创建 gRPC 服务器失败: %w", err)
 	}
 
 	// 注册到 Consul
 	consulClient, err := consul.RegisterFromEnv(appConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to register to Consul: %w", err)
+		return nil, fmt.Errorf("注册到 Consul 失败: %w", err)
 	}
 
 	return &ServerWithConsul{

@@ -11,6 +11,7 @@
 | 模块 | 职责 | 文档 |
 |------|------|------|
 | **config** | 应用配置管理 | 查看代码注释 |
+| **logger** | 日志输出 | 查看代码注释 |
 | **consul** | 服务注册与发现 | [document/consul.md](document/consul.md) |
 | **rpc** | gRPC 服务器封装 | [document/rpc.md](document/rpc.md) |
 
@@ -31,6 +32,16 @@ go mod download
 ```
 
 ### 2. 运行测试程序
+
+#### 方式 1：使用 VS Code 调试（推荐）
+
+按 `F5` 或点击"运行和调试"，选择以下配置之一：
+
+- **Launch Main** - 使用远程 Consul（192.168.30.230:8500）
+- **Launch Main (Local Consul)** - 使用本地 Consul（localhost:8500）
+- **Launch Main (No Consul)** - 不使用 Consul（测试错误处理）
+
+#### 方式 2：命令行运行
 
 ```bash
 # 确保 Consul 服务器正在运行
@@ -65,18 +76,16 @@ import (
 )
 
 func main() {
+    // 创建应用配置
     appConfig := &config.AppConfig{
-        Id:          1,
-        Type:        "user-service",
-        Environment: "prod",
-        Addr: config.Addr{
-            Host: "192.168.30.10",
-            Port: 50051,
-        },
+        Id:          config.LoadIdFromEnv(),      // 从环境变量加载
+        Type:        "user-service",               // 代码中设置
+        Environment: "prod",                       // 代码中设置
+        Addr:        config.LoadAddrFromEnv(),    // 从环境变量加载
     }
     
     // 创建 gRPC 服务器并注册到 Consul
-    server, _ := rpc.NewServerWithConsul(appConfig)
+    server, _ := rpc.NewServerWithConsul(nil, appConfig)
     
     // 注册业务服务
     // pb.RegisterUserServiceServer(server.GetGRPCServer(), &userServiceImpl{})
@@ -100,12 +109,17 @@ func main() {
 ```
 charry/
 ├── README.md                 # 项目总入口（本文件）
-├── main.go                   # 程序入口（测试用）
+├── main.go                   # 程序入口
+├── app.go                    # 应用启动流程
 ├── go.mod                    # Go 模块定义
 ├── .gitignore                # Git 忽略文件
+├── .vscode/                  # VS Code 配置
+│   └── launch.json           # 调试配置（含环境变量）
 ├── config/                   # 配置模块
 │   ├── config.go
 │   └── config.example.yaml
+├── logger/                   # 日志模块
+│   └── logger.go
 ├── consul/                   # Consul 服务注册模块
 │   ├── config.go
 │   ├── client.go
@@ -142,13 +156,24 @@ charry/
 1. **模块目录**
    - 模块目录下不放 README.md
    - 每个 .go 文件职责单一
-   - 文件命名清晰（config.go, client.go, register.go）
+   - 文件命名清晰（config.go, client.go, register.go, init.go）
 
-2. **模块依赖**
+2. **模块初始化**
+   - 每个模块都有 `init.go` 文件
+   - 提供 `Init()` 方法用于初始化
+   - 提供 `Close()` 方法用于清理
+   - 使用全局变量（如 GlobalClient, GlobalServer）
+
+3. **模块依赖**
    - 模块之间完全解耦
    - 可选依赖通过独立的文件实现（如 helper.go）
 
-3. **配置管理**
+4. **启动流程**
+   - 统一在 `app.go` 的 `StartUp()` 方法中管理
+   - 按顺序初始化：logger → rpc → consul
+   - 按相反顺序关闭：consul → rpc
+
+5. **配置管理**
    - 优先使用环境变量配置
    - 环境变量命名：`模块名_配置项`（如 `CONSUL_ADDRESS`）
    - 提供合理的默认值
@@ -175,15 +200,18 @@ charry/
 ```bash
 # 通用格式：模块名_配置项（全大写，下划线分隔）
 
-# Consul 模块
-CONSUL_ADDRESS=192.168.30.230:8500
-CONSUL_DATACENTER=dc1
-CONSUL_HEALTH_CHECK_TYPE=tcp
+# 应用配置（从环境变量加载）
+APP_ID=1                              # 应用实例 ID（默认 1）
+APP_HOST=192.168.30.10                # 监听主机（默认 0.0.0.0）
+APP_PORT=50051                        # 监听端口（默认 50051）
 
-# 应用配置
-APP_ENV=prod
-APP_PORT=8080
+# Consul 模块
+CONSUL_ADDRESS=192.168.30.230:8500    # Consul 地址
+CONSUL_DATACENTER=dc1                 # 数据中心（默认 dc1）
+CONSUL_HEALTH_CHECK_TYPE=tcp          # 健康检查类型（默认 tcp）
 ```
+
+**注意**：`Type` 和 `Environment` 在代码中配置，不从环境变量读取。
 
 ### 服务命名规范
 
@@ -205,6 +233,7 @@ Type 命名: 使用短横线连接（kebab-case）
 - **Go**: 1.25+
 - **gRPC**: google.golang.org/grpc
 - **Consul**: github.com/hashicorp/consul/api
+- **日志**: go.uber.org/zap
 - **配置**: github.com/spf13/viper
 
 ---

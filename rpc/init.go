@@ -12,11 +12,11 @@ var (
 
 // Init 初始化 RPC 模块
 // 创建 gRPC 服务器
-func Init(rpcConfig *RpcConfig, appConfig *config.AppConfig) error {
+func Init(cfg *config.Config) error {
 	logger.Info("初始化 RPC 模块...")
 
 	// 创建 gRPC 服务器
-	server, err := NewServer(rpcConfig, appConfig)
+	server, err := NewServer(nil, &cfg.App)
 	if err != nil {
 		return err
 	}
@@ -24,8 +24,8 @@ func Init(rpcConfig *RpcConfig, appConfig *config.AppConfig) error {
 	// 保存全局服务器
 	GlobalServer = server
 
-	logger.Infof("✓ RPC 模块初始化完成，监听地址: %s:%d", 
-		appConfig.Addr.Host, appConfig.Addr.Port)
+	logger.Infof("✓ RPC 模块初始化完成，监听地址: %s:%d",
+		cfg.App.Addr.Host, cfg.App.Addr.Port)
 	return nil
 }
 
@@ -46,4 +46,3 @@ func Close() {
 		logger.Info("✓ RPC 模块已关闭")
 	}
 }
-

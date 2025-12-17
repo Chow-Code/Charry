@@ -8,20 +8,20 @@ import (
 var (
 	// GlobalClient 全局 Consul 客户端
 	GlobalClient *Client
-	// GlobalAppConfig 全局应用配置
-	GlobalAppConfig *config.AppConfig
+	// GlobalConfig 全局配置
+	GlobalConfig *config.Config
 )
 
 // Init 初始化 Consul 模块
 // 创建客户端并注册服务到 Consul
-func Init(appConfig *config.AppConfig) error {
+func Init(cfg *config.Config) error {
 	logger.Info("初始化 Consul 模块...")
 
 	// 保存全局配置
-	GlobalAppConfig = appConfig
+	GlobalConfig = cfg
 
-	// 从环境变量创建客户端并注册服务
-	client, err := RegisterFromEnv(appConfig)
+	// 从配置创建客户端并注册服务
+	client, err := RegisterFromConfig(cfg)
 	if err != nil {
 		return err
 	}
@@ -36,10 +36,9 @@ func Init(appConfig *config.AppConfig) error {
 // Close 关闭 Consul 模块
 // 从 Consul 注销服务
 func Close() {
-	if GlobalClient != nil && GlobalAppConfig != nil {
+	if GlobalClient != nil && GlobalConfig != nil {
 		logger.Info("关闭 Consul 模块...")
-		GlobalClient.GracefulShutdown(GlobalAppConfig)
+		GlobalClient.GracefulShutdown(&GlobalConfig.App)
 		logger.Info("✓ Consul 模块已关闭")
 	}
 }
-

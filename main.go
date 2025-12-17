@@ -10,24 +10,27 @@ import (
 )
 
 func main() {
-	// 创建应用配置
+	// 第一步：加载环境变量
 	// 环境变量在 .vscode/launch.json 或启动脚本中设置
-	appConfig := &config.AppConfig{
-		Id:          config.LoadIdFromEnv(),   // 从环境变量加载 APP_ID
-		Type:        "test-service",           // 代码中设置
-		Environment: "dev",                    // 代码中设置
-		Addr:        config.LoadAddrFromEnv(), // 从环境变量加载 APP_HOST, APP_PORT
-		Metadata: map[string]any{
-			"version": "1.0.0",
-		},
+	env := config.LoadEnvArgs()
+	logger.Info("✓ 环境变量已加载")
+
+	// 第二步：从环境变量创建完整配置
+	cfg := config.NewConfigFromEnv(env)
+
+	// 设置应用特定配置
+	// cfg.App.Type 已从环境变量 APP_TYPE 加载
+	cfg.App.Environment = "dev" // 代码中设置
+	cfg.App.Metadata = map[string]any{
+		"version": "1.0.0",
 	}
 
 	logger.Infof("加载配置: ID=%d, 类型=%s, 环境=%s, 地址=%s:%d",
-		appConfig.Id, appConfig.Type, appConfig.Environment,
-		appConfig.Addr.Host, appConfig.Addr.Port)
+		cfg.App.Id, cfg.App.Type, cfg.App.Environment,
+		cfg.App.Addr.Host, cfg.App.Addr.Port)
 
-	// 启动应用（按顺序初始化各个模块）
-	if err := StartUp(appConfig); err != nil {
+	// 第三步：启动应用（按顺序初始化各个模块）
+	if err := StartUp(cfg); err != nil {
 		logger.Fatalf("应用启动失败: %v", err)
 	}
 

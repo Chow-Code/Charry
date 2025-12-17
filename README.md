@@ -10,7 +10,7 @@
 
 | 模块 | 职责 | 文档 |
 |------|------|------|
-| **config** | 应用配置管理 | 查看代码注释 |
+| **config** | 应用配置管理、环境变量加载、配置合并 | [document/config.md](document/config.md) |
 | **logger** | 日志输出 | 查看代码注释 |
 | **consul** | 服务注册与发现 | [document/consul.md](document/consul.md) |
 | **rpc** | gRPC 服务器封装 | [document/rpc.md](document/rpc.md) |
@@ -174,7 +174,10 @@ charry/
    - 按相反顺序关闭：consul → rpc
 
 5. **配置管理**
-   - 优先使用环境变量配置
+   - 使用 `EnvArgs` 统一管理环境变量
+   - 启动后第一步加载 `EnvArgs`
+   - 其他模块从 `EnvArgs` 获取配置
+   - 支持配置合并（`MergeConfig`）
    - 环境变量命名：`模块名_配置项`（如 `CONSUL_ADDRESS`）
    - 提供合理的默认值
 
@@ -202,6 +205,7 @@ charry/
 
 # 应用配置（从环境变量加载）
 APP_ID=1                              # 应用实例 ID（默认 1）
+APP_TYPE=user-service                 # 应用类型（默认 app-service）
 APP_HOST=192.168.30.10                # 监听主机（默认 0.0.0.0）
 APP_PORT=50051                        # 监听端口（默认 50051）
 

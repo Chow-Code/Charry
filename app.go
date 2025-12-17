@@ -9,7 +9,7 @@ import (
 
 // StartUp 启动应用
 // 按顺序初始化各个模块
-func StartUp(appConfig *config.AppConfig) error {
+func StartUp(cfg *config.Config) error {
 	logger.Info("========================================")
 	logger.Info("开始启动应用...")
 	logger.Info("========================================")
@@ -18,13 +18,13 @@ func StartUp(appConfig *config.AppConfig) error {
 	logger.Info("✓ 日志模块已初始化")
 
 	// 2. 初始化 RPC 模块
-	if err := rpc.Init(nil, appConfig); err != nil {
+	if err := rpc.Init(cfg); err != nil {
 		logger.Errorf("初始化 RPC 模块失败: %v", err)
 		return err
 	}
 
 	// 3. 初始化 Consul 模块
-	if err := consul.Init(appConfig); err != nil {
+	if err := consul.Init(cfg); err != nil {
 		logger.Errorf("初始化 Consul 模块失败: %v", err)
 		return err
 	}
@@ -58,4 +58,3 @@ func Shutdown() {
 	logger.Info("✓ 应用已关闭")
 	logger.Sync()
 }
-

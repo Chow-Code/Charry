@@ -12,6 +12,7 @@
 |------|------|------|
 | **config** | 应用配置管理、环境变量加载、配置合并 | [document/config.md](document/config.md) |
 | **logger** | 日志输出 | 查看代码注释 |
+| **event** | 事件总线、生产者消费者模式 | 查看代码注释和示例 |
 | **consul** | 服务注册与发现 | [document/consul.md](document/consul.md) |
 | **rpc** | gRPC 服务器封装 | [document/rpc.md](document/rpc.md) |
 
@@ -141,6 +142,12 @@ charry/
 │   └── config.example.yaml
 ├── logger/                   # 日志模块
 │   └── logger.go
+├── event/                    # 事件模块
+│   ├── event.go
+│   ├── consumer.go
+│   ├── bus.go
+│   ├── init.go
+│   └── example.go
 ├── consul/                   # Consul 服务注册模块
 │   ├── config.go
 │   ├── client.go

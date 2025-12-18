@@ -305,20 +305,20 @@ import (
 )
 
 func main() {
-    // TLS 配置
-    creds, _ := credentials.NewServerTLSFromFile("server.crt", "server.key")
+// TLS 配置
+creds, _ := credentials.NewServerTLSFromFile("server.crt", "server.key")
 
-    // 拦截器
-    unaryInterceptor := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-        log.Printf("Calling: %s", info.FullMethod)
-        return handler(ctx, req)
-    }
+// 拦截器
+unaryInterceptor := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+    log.Printf("Calling: %s", info.FullMethod)
+    return handler(ctx, req)
+}
 
     // 创建 RPC 配置
     rpcConfig := &rpc.RpcConfig{
         GrpcOptions: []grpc.ServerOption{
             grpc.Creds(creds),                      // TLS
-            grpc.UnaryInterceptor(unaryInterceptor), // 拦截器
+        grpc.UnaryInterceptor(unaryInterceptor), // 拦截器
             grpc.MaxRecvMsgSize(10 * 1024 * 1024),  // 最大接收
             grpc.MaxSendMsgSize(10 * 1024 * 1024),  // 最大发送
         },

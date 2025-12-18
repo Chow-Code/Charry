@@ -1,29 +1,24 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"strconv"
 )
 
 // EnvArgs 环境变量参数
 // 应用启动后第一个加载，所有环境变量统一从这里获取
+// 只包含最核心的配置，其他配置从 Consul KV 读取
 type EnvArgs struct {
 	// 应用配置
-	AppId   uint16
-	AppType string
-	AppHost string
-	AppPort int
+	AppId        uint16
+	AppHost      string
+	AppPort      int
+	AppConfigKey string // Consul KV 配置键
 
-	// Consul 配置
-	ConsulAddress                 string
-	ConsulDatacenter              string
-	ConsulHealthCheckType         string
-	ConsulHealthCheckPath         string
-	ConsulHealthCheckInterval     string
-	ConsulHealthCheckTimeout      string
-	ConsulDeregisterCriticalAfter string
-	ConsulHealthCheckTTL          string
-	ConsulGRPCUseTLS              bool
+	// Consul 配置（只保留必需的连接信息）
+	ConsulAddress    string
+	ConsulDatacenter string
 }
 
 // LoadEnvArgs 从环境变量加载所有配置参数
@@ -31,21 +26,14 @@ type EnvArgs struct {
 func LoadEnvArgs() *EnvArgs {
 	return &EnvArgs{
 		// 应用配置
-		AppId:   uint16(getEnvAsInt("APP_ID", 1)),
-		AppType: getEnv("APP_TYPE", "app-service"),
-		AppHost: getEnv("APP_HOST", "0.0.0.0"),
-		AppPort: getEnvAsInt("APP_PORT", 50051),
+		AppId:        uint16(getEnvAsInt("APP_ID", 1)),
+		AppHost:      getEnv("APP_HOST", "0.0.0.0"),
+		AppPort:      getEnvAsInt("APP_PORT", 50051),
+		AppConfigKey: getEnv("APP_CONFIG_KEY", ""),
 
-		// Consul 配置
-		ConsulAddress:                 getEnv("CONSUL_ADDRESS", "localhost:8500"),
-		ConsulDatacenter:              getEnv("CONSUL_DATACENTER", "dc1"),
-		ConsulHealthCheckType:         getEnv("CONSUL_HEALTH_CHECK_TYPE", "tcp"),
-		ConsulHealthCheckPath:         getEnv("CONSUL_HEALTH_CHECK_PATH", ""),
-		ConsulHealthCheckInterval:     getEnv("CONSUL_HEALTH_CHECK_INTERVAL", "10s"),
-		ConsulHealthCheckTimeout:      getEnv("CONSUL_HEALTH_CHECK_TIMEOUT", "5s"),
-		ConsulDeregisterCriticalAfter: getEnv("CONSUL_DEREGISTER_CRITICAL_SERVICE_AFTER", "30s"),
-		ConsulHealthCheckTTL:          getEnv("CONSUL_HEALTH_CHECK_TTL", "30s"),
-		ConsulGRPCUseTLS:              getEnv("CONSUL_GRPC_USE_TLS", "false") == "true",
+		// Consul 配置（只保留必需的连接信息）
+		ConsulAddress:    getEnv("CONSUL_ADDRESS", "localhost:8500"),
+		ConsulDatacenter: getEnv("CONSUL_DATACENTER", "dc1"),
 	}
 }
 
@@ -65,4 +53,13 @@ func getEnvAsInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// ToJSON 将 EnvArgs 转换为美化的 JSON 字符串
+func (e *EnvArgs) ToJSON() string {
+	data, err := json.MarshalIndent(e, "", "  ")
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
 }

@@ -59,3 +59,36 @@ func (c *Client) Ping() error {
 	}
 	return nil
 }
+
+// GetKV 从 Consul 获取 Key/Value
+func (c *Client) GetKV(key string) (string, error) {
+	pair, _, err := c.client.KV().Get(key, nil)
+	if err != nil {
+		return "", fmt.Errorf("获取 KV 失败: %w", err)
+	}
+
+	if pair == nil {
+		return "", fmt.Errorf("配置键不存在: %s", key)
+	}
+
+	return string(pair.Value), nil
+}
+
+// PutKV 设置 Key/Value 到 Consul
+func (c *Client) PutKV(key, value string) error {
+	p := &consulapi.KVPair{Key: key, Value: []byte(value)}
+	_, err := c.client.KV().Put(p, nil)
+	if err != nil {
+		return fmt.Errorf("设置 KV 失败: %w", err)
+	}
+	return nil
+}
+
+// DeleteKV 删除 Consul 中的 Key/Value
+func (c *Client) DeleteKV(key string) error {
+	_, err := c.client.KV().Delete(key, nil)
+	if err != nil {
+		return fmt.Errorf("删除 KV 失败: %w", err)
+	}
+	return nil
+}

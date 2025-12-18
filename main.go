@@ -10,26 +10,29 @@ import (
 )
 
 func main() {
-	// 第一步：加载环境变量
-	// 环境变量在 .vscode/launch.json 或启动脚本中设置
+	// 第一步：从默认配置文件加载
+	cfg, err := config.LoadFromFile("default.config.json")
+	if err != nil {
+		logger.Fatalf("加载默认配置失败: %v", err)
+	}
+	logger.Info("✓ 默认配置已加载")
+
+	// 第二步：加载环境变量
 	env := config.LoadEnvArgs()
 	logger.Info("✓ 环境变量已加载")
+	logger.Infof("\n%s", env.ToJSON())
 
-	// 第二步：从环境变量创建完整配置
-	cfg := config.NewConfigFromEnv(env)
+	// 第三步：环境变量覆写配置
+	cfg.ApplyEnvArgs(env)
 
-	// 设置应用特定配置
-	// cfg.App.Type 已从环境变量 APP_TYPE 加载
-	cfg.App.Environment = "dev" // 代码中设置
+	// 第四步：设置应用特定配置
+	cfg.App.Type = "test-service"
+	cfg.App.Environment = "dev"
 	cfg.App.Metadata = map[string]any{
 		"version": "1.0.0",
 	}
 
-	logger.Infof("加载配置: ID=%d, 类型=%s, 环境=%s, 地址=%s:%d",
-		cfg.App.Id, cfg.App.Type, cfg.App.Environment,
-		cfg.App.Addr.Host, cfg.App.Addr.Port)
-
-	// 第三步：启动应用（按顺序初始化各个模块）
+	// 第五步：启动应用（会先从 Consul KV 拉取配置）
 	if err := StartUp(cfg); err != nil {
 		logger.Fatalf("应用启动失败: %v", err)
 	}

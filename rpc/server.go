@@ -54,9 +54,6 @@ func (s *Server) GetGRPCServer() *grpc.Server {
 
 // Start 启动 gRPC 服务器
 func (s *Server) Start() error {
-	addr := s.listener.Addr().String()
-	logger.Infof("启动 gRPC 服务器: %s", addr)
-
 	if err := s.grpcServer.Serve(s.listener); err != nil {
 		return fmt.Errorf("启动服务失败: %w", err)
 	}

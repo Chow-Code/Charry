@@ -31,7 +31,28 @@
 go mod download
 ```
 
-### 2. 运行测试程序
+### 2. 配置系统（三层配置 + 热更新）
+
+**配置加载顺序：**
+```
+1. default.config.json (默认配置)
+    ↓ ApplyEnvArgs()
+2. 环境变量 (覆写)
+    ↓ LoadConfigFromConsul()
+3. Consul KV (覆写)
+    ↓
+最终配置
+    ↓ WatchConfig()
+动态监听 Consul KV 变化并自动更新
+```
+
+**配置分工：**
+- **default.config.json** - 固定的默认配置（健康检查参数等）
+- **环境变量** - 实例特定信息（ID, Host, Port）
+- **Consul KV** - 业务配置（Type, Environment, Metadata）
+- **配置监听** - 自动监听 Consul KV 变化并热更新
+
+### 3. 运行测试程序
 
 #### 方式 1：使用 VS Code 调试（推荐）
 
@@ -204,15 +225,16 @@ charry/
 # 通用格式：模块名_配置项（全大写，下划线分隔）
 
 # 应用配置（从环境变量加载）
-APP_ID=1                              # 应用实例 ID（默认 1）
-APP_TYPE=user-service                 # 应用类型（默认 app-service）
-APP_HOST=192.168.30.10                # 监听主机（默认 0.0.0.0）
-APP_PORT=50051                        # 监听端口（默认 50051）
+APP_ID=1                                    # 应用实例 ID（默认 1）
+APP_HOST=192.168.30.10                      # 监听主机（默认 0.0.0.0）
+APP_PORT=50051                              # 监听端口（默认 50051）
+APP_CONFIG_KEY=charry/config/user-service   # Consul KV 配置键（可选）
 
-# Consul 模块
-CONSUL_ADDRESS=192.168.30.230:8500    # Consul 地址
-CONSUL_DATACENTER=dc1                 # 数据中心（默认 dc1）
-CONSUL_HEALTH_CHECK_TYPE=tcp          # 健康检查类型（默认 tcp）
+# Consul 连接配置
+CONSUL_ADDRESS=192.168.30.230:8500          # Consul 地址
+CONSUL_DATACENTER=dc1                       # 数据中心（默认 dc1）
+
+# 注意：Type, Environment, 健康检查等配置通过 Consul KV 管理
 ```
 
 **注意**：`Type` 和 `Environment` 在代码中配置，不从环境变量读取。

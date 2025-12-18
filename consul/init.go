@@ -1,6 +1,8 @@
 package consul
 
 import (
+	"fmt"
+
 	"github.com/charry/config"
 	"github.com/charry/logger"
 )
@@ -38,7 +40,58 @@ func Init(cfg *config.Config) error {
 func Close() {
 	if GlobalClient != nil && GlobalConfig != nil {
 		logger.Info("关闭 Consul 模块...")
+
+		// 停止配置监听
+		StopWatch()
+
+		// 注销服务
 		GlobalClient.GracefulShutdown(&GlobalConfig.App)
 		logger.Info("✓ Consul 模块已关闭")
 	}
+}
+
+// LoadConfigFromConsul 从 Consul 加载配置
+// 如果 configKey 为空，则跳过加载
+func LoadConfigFromConsul(cfg *config.Config, configKey string) error {
+	if configKey == "" {
+		logger.Info("未配置 APP_CONFIG_KEY，跳过从 Consul 加载配置")
+		return nil
+	}
+
+	logger.Infof("从 Consul 加载配置: %s", configKey)
+
+	// 创建临时 Consul 客户端（用于拉取配置）
+	consulConfig := &Config{
+		Address:    cfg.Consul.Address,
+		Datacenter: cfg.Consul.Datacenter,
+	}
+
+	client, err := NewClient(consulConfig)
+	if err != nil {
+		return fmt.Errorf("创建 Consul 客户端失败: %w", err)
+	}
+
+	// 测试连接
+	if err := client.Ping(); err != nil {
+		return fmt.Errorf("连接 Consul 失败: %w", err)
+	}
+
+	// 获取配置
+	jsonStr, err := client.GetKV(configKey)
+	if err != nil {
+		logger.Warnf("从 Consul 加载配置失败: %v，使用本地配置", err)
+		return nil // 不阻止启动，使用本地配置
+	}
+
+	// 解析并合并配置
+	if err := cfg.ReadFromJSON(jsonStr); err != nil {
+		return fmt.Errorf("解析 Consul 配置失败: %w", err)
+	}
+
+	logger.Info("✓ 配置已从 Consul 加载并合并")
+	if jsonStr, err := cfg.ToJSON(); err == nil {
+		logger.Infof("\n%s", jsonStr)
+	}
+
+	return nil
 }

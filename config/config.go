@@ -1,11 +1,17 @@
 package config
 
-import "reflect"
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"reflect"
+)
 
 // Config 应用程序主配置结构
 type Config struct {
-	App    AppConfig    `mapstructure:"app" yaml:"app" json:"app"`
-	Consul ConsulConfig `mapstructure:"consul" yaml:"consul" json:"consul"`
+	App          AppConfig    `mapstructure:"app" yaml:"app" json:"app"`
+	Consul       ConsulConfig `mapstructure:"consul" yaml:"consul" json:"consul"`
+	AppConfigKey string       `mapstructure:"-" yaml:"-" json:"-"` // Consul KV 配置键（不序列化）
 }
 
 // ConsulConfig Consul 配置
@@ -40,8 +46,7 @@ type Addr struct {
 func NewConfigFromEnv(env *EnvArgs) *Config {
 	return &Config{
 		App: AppConfig{
-			Id:   env.AppId,
-			Type: env.AppType,
+			Id: env.AppId,
 			Addr: Addr{
 				Host: env.AppHost,
 				Port: env.AppPort,
@@ -51,14 +56,14 @@ func NewConfigFromEnv(env *EnvArgs) *Config {
 		Consul: ConsulConfig{
 			Address:                        env.ConsulAddress,
 			Datacenter:                     env.ConsulDatacenter,
-			HealthCheckType:                env.ConsulHealthCheckType,
-			HealthCheckPath:                env.ConsulHealthCheckPath,
-			HealthCheckInterval:            env.ConsulHealthCheckInterval,
-			HealthCheckTimeout:             env.ConsulHealthCheckTimeout,
-			DeregisterCriticalServiceAfter: env.ConsulDeregisterCriticalAfter,
-			HealthCheckTTL:                 env.ConsulHealthCheckTTL,
-			GRPCUseTLS:                     env.ConsulGRPCUseTLS,
+			HealthCheckType:                "tcp",    // 默认值
+			HealthCheckInterval:            "10s",   // 默认值
+			HealthCheckTimeout:             "5s",    // 默认值
+			DeregisterCriticalServiceAfter: "30s",   // 默认值
+			HealthCheckTTL:                 "30s",   // 默认值
+			GRPCUseTLS:                     false,   // 默认值
 		},
+		AppConfigKey: env.AppConfigKey,
 	}
 }
 
@@ -200,4 +205,74 @@ func isZeroValue(v interface{}) bool {
 		return val.IsNil()
 	}
 	return false
+}
+
+// ReadFromJSON 从 JSON 字符串读取配置
+// 解析 JSON 并合并到当前 Config 对象
+func (c *Config) ReadFromJSON(jsonStr string) error {
+	if jsonStr == "" {
+		return nil
+	}
+
+	// 创建临时 Config 用于解析 JSON
+	tempConfig := &Config{}
+
+	if err := json.Unmarshal([]byte(jsonStr), tempConfig); err != nil {
+		return fmt.Errorf("解析配置 JSON 失败: %w", err)
+	}
+
+	// 合并到当前配置
+	MergeConfig(c, tempConfig)
+
+	return nil
+}
+
+// ToJSON 将配置转换为 JSON 字符串
+func (c *Config) ToJSON() (string, error) {
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("序列化配置失败: %w", err)
+	}
+	return string(data), nil
+}
+
+// LoadFromFile 从 JSON 文件加载配置
+func LoadFromFile(filename string) (*Config, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("读取配置文件失败: %w", err)
+	}
+
+	cfg := &Config{}
+	if err := json.Unmarshal(data, cfg); err != nil {
+		return nil, fmt.Errorf("解析配置文件失败: %w", err)
+	}
+
+	return cfg, nil
+}
+
+// ApplyEnvArgs 应用环境变量到配置
+// 只覆盖环境变量中设置的值
+func (c *Config) ApplyEnvArgs(env *EnvArgs) {
+	// 应用配置
+	if env.AppId != 0 {
+		c.App.Id = env.AppId
+	}
+	if env.AppHost != "" {
+		c.App.Addr.Host = env.AppHost
+	}
+	if env.AppPort != 0 {
+		c.App.Addr.Port = env.AppPort
+	}
+	if env.AppConfigKey != "" {
+		c.AppConfigKey = env.AppConfigKey
+	}
+
+	// Consul 配置
+	if env.ConsulAddress != "" {
+		c.Consul.Address = env.ConsulAddress
+	}
+	if env.ConsulDatacenter != "" {
+		c.Consul.Datacenter = env.ConsulDatacenter
+	}
 }

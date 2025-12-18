@@ -463,8 +463,63 @@ curl http://192.168.30.230:8500/v1/agent/services
 
 ---
 
+## 配置监听
+
+### 自动监听配置变化
+
+应用启动后会自动监听 Consul KV 配置的变化，当配置更新时自动重新加载。
+
+**工作原理：**
+```
+1. 使用 Consul 阻塞查询（Blocking Query）
+2. 检测到配置变化时自动拉取
+3. 解析 JSON 并合并到当前配置
+4. 触发配置变更回调
+```
+
+**使用方法：**
+```go
+// 启动时自动开始监听（在 StartUp 中）
+consul.WatchConfig(cfg, cfg.AppConfigKey)
+
+// 关闭时自动停止监听（在 Shutdown 中）
+consul.StopWatch()
+```
+
+**配置变更回调：**
+
+可以在 `consul/watch.go` 的 `onConfigChanged()` 方法中添加自定义逻辑：
+
+```go
+func onConfigChanged(cfg *config.Config) {
+    // 配置更新后的处理逻辑
+    // 例如：重新加载缓存、更新连接池等
+}
+```
+
+### 测试配置热更新
+
+```bash
+# 1. 启动应用
+./charry
+
+# 2. 在另一个终端修改配置
+curl -X PUT -d '{
+  "app": {
+    "metadata": {
+      "region": "cn-west"
+    }
+  }
+}' http://192.168.30.230:8500/v1/kv/charry/config/test-service
+
+# 3. 应用会自动检测并重新加载配置
+```
+
+---
+
 ## 相关文档
 
+- [Config 模块文档](./config.md) - 配置管理
 - [RPC 模块文档](./rpc.md) - gRPC 服务器封装
 - [Consul 部署指南](./setup.md) - Consul 服务器部署
 - [项目 README](../README.md) - 项目总入口

@@ -7,224 +7,196 @@ import (
 	"reflect"
 )
 
+var (
+	// globalConfig 全局配置（私有）
+	globalConfig *Config
+)
+
 // Config 应用程序主配置结构
 type Config struct {
-	App          AppConfig    `mapstructure:"app" yaml:"app" json:"app"`
-	Consul       ConsulConfig `mapstructure:"consul" yaml:"consul" json:"consul"`
-	AppConfigKey string       `mapstructure:"-" yaml:"-" json:"-"` // Consul KV 配置键（不序列化）
+	App          AppConfig    `json:"app"`
+	Consul       ConsulConfig `json:"consul"`
+	AppConfigKey string       `json:"-"` // Consul KV 配置键（不序列化）
 }
 
 // ConsulConfig Consul 配置
 type ConsulConfig struct {
-	Address                        string `mapstructure:"address" yaml:"address" json:"address"`
-	Datacenter                     string `mapstructure:"datacenter" yaml:"datacenter" json:"datacenter"`
-	HealthCheckType                string `mapstructure:"health_check_type" yaml:"health_check_type" json:"health_check_type"`
-	HealthCheckPath                string `mapstructure:"health_check_path" yaml:"health_check_path" json:"health_check_path"`
-	HealthCheckInterval            string `mapstructure:"health_check_interval" yaml:"health_check_interval" json:"health_check_interval"`
-	HealthCheckTimeout             string `mapstructure:"health_check_timeout" yaml:"health_check_timeout" json:"health_check_timeout"`
-	DeregisterCriticalServiceAfter string `mapstructure:"deregister_critical_service_after" yaml:"deregister_critical_service_after" json:"deregister_critical_service_after"`
-	HealthCheckTTL                 string `mapstructure:"health_check_ttl" yaml:"health_check_ttl" json:"health_check_ttl"`
-	GRPCUseTLS                     bool   `mapstructure:"grpc_use_tls" yaml:"grpc_use_tls" json:"grpc_use_tls"`
+	Address                        string `json:"address"`
+	Datacenter                     string `json:"datacenter"`
+	HealthCheckType                string `json:"health_check_type"`
+	HealthCheckPath                string `json:"health_check_path"`
+	HealthCheckInterval            string `json:"health_check_interval"`
+	HealthCheckTimeout             string `json:"health_check_timeout"`
+	DeregisterCriticalServiceAfter string `json:"deregister_critical_service_after"`
+	HealthCheckTTL                 string `json:"health_check_ttl"`
+	GRPCUseTLS                     bool   `json:"grpc_use_tls"`
 }
 
 // AppConfig 应用配置
 type AppConfig struct {
-	Id          uint16         `mapstructure:"id" yaml:"id" json:"id"`
-	Type        string         `mapstructure:"type" yaml:"type" json:"type"`
-	Environment string         `mapstructure:"environment" yaml:"environment" json:"environment"` // dev, test, prod
-	Addr        Addr           `mapstructure:"addr" yaml:"addr" json:"addr"`
-	Metadata    map[string]any `mapstructure:"metadata" yaml:"metadata" json:"metadata"`
+	Id          uint16         `json:"id"`
+	Type        string         `json:"type"`
+	Environment string         `json:"environment"` // dev, test, prod
+	Addr        Addr           `json:"addr"`
+	Metadata    map[string]any `json:"metadata"`
 }
 
 // Addr 地址配置
 type Addr struct {
-	Host string `mapstructure:"host" yaml:"host" json:"host"`
-	Port int    `mapstructure:"port" yaml:"port" json:"port"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
 }
 
-// NewConfigFromEnv 从 EnvArgs 创建完整的 Config
-func NewConfigFromEnv(env *EnvArgs) *Config {
-	return &Config{
-		App: AppConfig{
-			Id: env.AppId,
-			Addr: Addr{
-				Host: env.AppHost,
-				Port: env.AppPort,
-			},
-			Metadata: make(map[string]any),
-		},
-		Consul: ConsulConfig{
-			Address:                        env.ConsulAddress,
-			Datacenter:                     env.ConsulDatacenter,
-			HealthCheckType:                "tcp",    // 默认值
-			HealthCheckInterval:            "10s",   // 默认值
-			HealthCheckTimeout:             "5s",    // 默认值
-			DeregisterCriticalServiceAfter: "30s",   // 默认值
-			HealthCheckTTL:                 "30s",   // 默认值
-			GRPCUseTLS:                     false,   // 默认值
-		},
-		AppConfigKey: env.AppConfigKey,
+// Init 初始化全局配置
+// 从默认配置文件加载，然后应用环境变量
+func Init(env *EnvArgs) error {
+	// 从默认配置文件加载
+	cfg, err := LoadFromFile("default.config.json")
+	if err != nil {
+		return fmt.Errorf("加载默认配置失败: %w", err)
 	}
+
+	// 应用环境变量（直接覆写）
+	cfg.App.Id = env.AppId
+	cfg.App.Addr.Host = env.AppHost
+	cfg.App.Addr.Port = env.AppPort
+	cfg.AppConfigKey = env.AppConfigKey
+	cfg.Consul.Address = env.ConsulAddress
+	cfg.Consul.Datacenter = env.ConsulDatacenter
+
+	// 保存到全局配置
+	globalConfig = cfg
+
+	return nil
 }
 
-// LoadAddrFromEnv 从 EnvArgs 加载 Addr 配置
-func LoadAddrFromEnv(env *EnvArgs) Addr {
-	return Addr{
-		Host: env.AppHost,
-		Port: env.AppPort,
+// Get 获取全局配置的副本
+// 返回值拷贝，防止外部修改全局配置
+func Get() Config {
+	if globalConfig == nil {
+		return Config{}
 	}
+	return *globalConfig
 }
 
-// LoadIdFromEnv 从 EnvArgs 加载 ID
-func LoadIdFromEnv(env *EnvArgs) uint16 {
-	return env.AppId
+// GetPtr 获取全局配置的指针
+// 注意：只在需要修改配置时使用（如从 Consul 合并）
+func GetPtr() *Config {
+	return globalConfig
 }
 
-// MergeConfig 合并两个 Config 对象
-// 将 config2 中不为空的值合并到 config1 中，返回 config1 的引用
-// 用于后续从 Consul 读取配置并覆盖本地配置
-func MergeConfig(config1, config2 *Config) *Config {
-	if config1 == nil {
-		return config2
-	}
-	if config2 == nil {
-		return config1
-	}
+// mergeFromMap 从 map 合并配置到结构体
+// 只处理 JSON 中实际存在的字段
+func mergeFromMap(structValue reflect.Value, dataMap map[string]interface{}) error {
+	structType := structValue.Type()
 
-	// 直接修改 config1 的 App 配置
-	config1.App = mergeAppConfig(&config1.App, &config2.App)
+	for i := 0; i < structValue.NumField(); i++ {
+		field := structValue.Field(i)
+		fieldType := structType.Field(i)
 
-	// 合并 Consul 配置
-	config1.Consul = mergeConsulConfig(&config1.Consul, &config2.Consul)
-
-	return config1
-}
-
-// mergeConsulConfig 合并两个 ConsulConfig
-func mergeConsulConfig(consul1, consul2 *ConsulConfig) ConsulConfig {
-	result := *consul1
-
-	if consul2.Address != "" {
-		result.Address = consul2.Address
-	}
-	if consul2.Datacenter != "" {
-		result.Datacenter = consul2.Datacenter
-	}
-	if consul2.HealthCheckType != "" {
-		result.HealthCheckType = consul2.HealthCheckType
-	}
-	if consul2.HealthCheckPath != "" {
-		result.HealthCheckPath = consul2.HealthCheckPath
-	}
-	if consul2.HealthCheckInterval != "" {
-		result.HealthCheckInterval = consul2.HealthCheckInterval
-	}
-	if consul2.HealthCheckTimeout != "" {
-		result.HealthCheckTimeout = consul2.HealthCheckTimeout
-	}
-	if consul2.DeregisterCriticalServiceAfter != "" {
-		result.DeregisterCriticalServiceAfter = consul2.DeregisterCriticalServiceAfter
-	}
-	if consul2.HealthCheckTTL != "" {
-		result.HealthCheckTTL = consul2.HealthCheckTTL
-	}
-	// GRPCUseTLS 是 bool，需要特殊处理
-	if consul2.GRPCUseTLS {
-		result.GRPCUseTLS = consul2.GRPCUseTLS
-	}
-
-	return result
-}
-
-// mergeAppConfig 合并两个 AppConfig
-func mergeAppConfig(app1, app2 *AppConfig) AppConfig {
-	result := *app1
-
-	// 合并基本字段（如果 app2 的值不为零值）
-	if app2.Id != 0 {
-		result.Id = app2.Id
-	}
-	if app2.Type != "" {
-		result.Type = app2.Type
-	}
-	if app2.Environment != "" {
-		result.Environment = app2.Environment
-	}
-
-	// 合并 Addr
-	result.Addr = mergeAddr(&app1.Addr, &app2.Addr)
-
-	// 合并 Metadata
-	if len(app2.Metadata) > 0 {
-		if result.Metadata == nil {
-			result.Metadata = make(map[string]any)
+		// 获取 JSON 标签名
+		jsonTag := fieldType.Tag.Get("json")
+		if jsonTag == "" || jsonTag == "-" {
+			continue
 		}
-		for k, v := range app2.Metadata {
-			// 只合并不为 nil 的值
-			if v != nil && !isZeroValue(v) {
-				result.Metadata[k] = v
+
+		// 检查 map 中是否有这个字段
+		value, exists := dataMap[jsonTag]
+		if !exists || value == nil {
+			continue
+		}
+
+		// 根据字段类型处理
+		if err := setFieldValue(field, value); err != nil {
+			return fmt.Errorf("设置字段 %s 失败: %w", fieldType.Name, err)
+		}
+	}
+
+	return nil
+}
+
+// setFieldValue 设置字段值
+func setFieldValue(field reflect.Value, value interface{}) error {
+	if !field.CanSet() {
+		return nil
+	}
+
+	valueReflect := reflect.ValueOf(value)
+
+	switch field.Kind() {
+	case reflect.String:
+		if str, ok := value.(string); ok {
+			field.SetString(str)
+		}
+
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if num, ok := value.(float64); ok {
+			field.SetInt(int64(num))
+		}
+
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if num, ok := value.(float64); ok {
+			field.SetUint(uint64(num))
+		}
+
+	case reflect.Bool:
+		if b, ok := value.(bool); ok {
+			field.SetBool(b)
+		}
+
+	case reflect.Struct:
+		// 嵌套结构体
+		if subMap, ok := value.(map[string]interface{}); ok {
+			return mergeFromMap(field, subMap)
+		}
+
+	case reflect.Map:
+		// Map 类型
+		if mapValue, ok := value.(map[string]interface{}); ok {
+			if field.IsNil() {
+				field.Set(reflect.MakeMap(field.Type()))
+			}
+			for k, v := range mapValue {
+				field.SetMapIndex(reflect.ValueOf(k), reflect.ValueOf(v))
 			}
 		}
+
+	case reflect.Slice:
+		// Slice 类型
+		if sliceValue, ok := value.([]interface{}); ok {
+			newSlice := reflect.MakeSlice(field.Type(), len(sliceValue), len(sliceValue))
+			for i, item := range sliceValue {
+				newSlice.Index(i).Set(reflect.ValueOf(item))
+			}
+			field.Set(newSlice)
+		}
+
+	default:
+		// 尝试直接设置
+		if valueReflect.Type().AssignableTo(field.Type()) {
+			field.Set(valueReflect)
+		}
 	}
 
-	return result
+	return nil
 }
 
-// mergeAddr 合并两个 Addr
-func mergeAddr(addr1, addr2 *Addr) Addr {
-	result := *addr1
-
-	if addr2.Host != "" {
-		result.Host = addr2.Host
-	}
-	if addr2.Port != 0 {
-		result.Port = addr2.Port
-	}
-
-	return result
-}
-
-// isZeroValue 判断值是否为零值
-func isZeroValue(v interface{}) bool {
-	if v == nil {
-		return true
-	}
-	val := reflect.ValueOf(v)
-	switch val.Kind() {
-	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
-		return val.Len() == 0
-	case reflect.Bool:
-		return !val.Bool()
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return val.Int() == 0
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		return val.Uint() == 0
-	case reflect.Float32, reflect.Float64:
-		return val.Float() == 0
-	case reflect.Interface, reflect.Ptr:
-		return val.IsNil()
-	}
-	return false
-}
-
-// ReadFromJSON 从 JSON 字符串读取配置
-// 解析 JSON 并合并到当前 Config 对象
-func (c *Config) ReadFromJSON(jsonStr string) error {
+// MergeFromJSON 从 JSON 字符串合并配置
+// 只解析 JSON 中存在的字段并合并到当前 Config
+func (c *Config) MergeFromJSON(jsonStr string) error {
 	if jsonStr == "" {
 		return nil
 	}
 
-	// 创建临时 Config 用于解析 JSON
-	tempConfig := &Config{}
-
-	if err := json.Unmarshal([]byte(jsonStr), tempConfig); err != nil {
+	// 解析 JSON 到 map
+	var jsonMap map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &jsonMap); err != nil {
 		return fmt.Errorf("解析配置 JSON 失败: %w", err)
 	}
 
-	// 合并到当前配置
-	MergeConfig(c, tempConfig)
-
-	return nil
+	// 使用反射合并 JSON 数据
+	configValue := reflect.ValueOf(c).Elem()
+	return mergeFromMap(configValue, jsonMap)
 }
 
 // ToJSON 将配置转换为 JSON 字符串
@@ -249,30 +221,4 @@ func LoadFromFile(filename string) (*Config, error) {
 	}
 
 	return cfg, nil
-}
-
-// ApplyEnvArgs 应用环境变量到配置
-// 只覆盖环境变量中设置的值
-func (c *Config) ApplyEnvArgs(env *EnvArgs) {
-	// 应用配置
-	if env.AppId != 0 {
-		c.App.Id = env.AppId
-	}
-	if env.AppHost != "" {
-		c.App.Addr.Host = env.AppHost
-	}
-	if env.AppPort != 0 {
-		c.App.Addr.Port = env.AppPort
-	}
-	if env.AppConfigKey != "" {
-		c.AppConfigKey = env.AppConfigKey
-	}
-
-	// Consul 配置
-	if env.ConsulAddress != "" {
-		c.Consul.Address = env.ConsulAddress
-	}
-	if env.ConsulDatacenter != "" {
-		c.Consul.Datacenter = env.ConsulDatacenter
-	}
 }

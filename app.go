@@ -9,41 +9,56 @@ import (
 )
 
 // StartUp 启动应用
-// 按顺序初始化各个模块
-func StartUp(cfg *config.Config) error {
+// 完整的启动流程，无需外部参数
+func StartUp() error {
 	logger.Info("========================================")
 	logger.Info("开始启动应用...")
 	logger.Info("========================================")
 
-	// 1. 初始化日志模块（已在 logger.init() 中完成）
+	// 1. 加载环境变量
+	env := config.LoadEnvArgs()
+	logger.Info("✓ 环境变量已加载")
+	logger.Infof("\n%s", env.ToJSON())
+
+	// 2. 初始化配置（从默认配置文件 + 环境变量）
+	if err := config.Init(env); err != nil {
+		logger.Errorf("初始化配置失败: %v", err)
+		return err
+	}
+	logger.Info("✓ 配置已初始化")
+
+	// 3. 获取配置指针
+	cfg := config.GetPtr()
+
+	// 4. 从 Consul 加载配置并合并（如果配置了 AppConfigKey）
+	if err := consul.LoadConfigFromConsul(cfg); err != nil {
+		logger.Errorf("从 Consul 加载配置失败: %v", err)
+		return err
+	}
+
+	// 5. 初始化日志模块（已在 logger.init() 中完成）
 	logger.Info("✓ 日志模块已初始化")
 
-	// 2. 初始化事件模块
+	// 6. 初始化事件模块
 	if err := event.Init(10); err != nil {
 		logger.Errorf("初始化事件模块失败: %v", err)
 		return err
 	}
 
-	// 3. 从 Consul 加载配置并合并（如果配置了 AppConfigKey）
-	if err := consul.LoadConfigFromConsul(cfg, cfg.AppConfigKey); err != nil {
-		logger.Errorf("从 Consul 加载配置失败: %v", err)
-		return err
-	}
-
-	// 4. 初始化 RPC 模块（创建并启动服务器）
+	// 7. 初始化 RPC 模块（创建并启动服务器）
 	if err := rpc.Init(cfg); err != nil {
 		logger.Errorf("初始化 RPC 模块失败: %v", err)
 		return err
 	}
 
-	// 5. 初始化 Consul 模块（服务注册）
+	// 8. 初始化 Consul 模块（服务注册）
 	if err := consul.Init(cfg); err != nil {
 		logger.Errorf("初始化 Consul 模块失败: %v", err)
 		return err
 	}
 
-	// 6. 启动配置监听（监听 Consul KV 变化）
-	consul.WatchConfig(cfg, cfg.AppConfigKey)
+	// 9. 启动配置监听（监听 Consul KV 变化）
+	consul.WatchConfig(cfg)
 
 	logger.Info("========================================")
 	logger.Info("✓ 应用启动完成")

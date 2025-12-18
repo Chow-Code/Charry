@@ -51,8 +51,10 @@ func Close() {
 }
 
 // LoadConfigFromConsul 从 Consul 加载配置
-// 如果 configKey 为空，则跳过加载
-func LoadConfigFromConsul(cfg *config.Config, configKey string) error {
+// 如果 cfg.AppConfigKey 为空，则跳过加载
+func LoadConfigFromConsul(cfg *config.Config) error {
+	configKey := cfg.AppConfigKey
+	
 	if configKey == "" {
 		logger.Info("未配置 APP_CONFIG_KEY，跳过从 Consul 加载配置")
 		return nil
@@ -84,7 +86,7 @@ func LoadConfigFromConsul(cfg *config.Config, configKey string) error {
 	}
 
 	// 解析并合并配置
-	if err := cfg.ReadFromJSON(jsonStr); err != nil {
+	if err := cfg.MergeFromJSON(jsonStr); err != nil {
 		return fmt.Errorf("解析 Consul 配置失败: %w", err)
 	}
 

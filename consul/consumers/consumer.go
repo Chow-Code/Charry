@@ -1,11 +1,11 @@
 package consumers
 
 import (
+	"github.com/charry/constants/event_name"
+	"github.com/charry/constants/priority"
 	"github.com/charry/consul"
 	"github.com/charry/event"
-	"github.com/charry/event_name"
 	"github.com/charry/logger"
-	"github.com/charry/priority"
 )
 
 // ServiceRegisterConsumer Consul 服务注册消费者

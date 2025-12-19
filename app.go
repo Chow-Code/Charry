@@ -2,10 +2,13 @@ package main
 
 import (
 	"github.com/charry/config"
+	_ "github.com/charry/config/consumers" // 自动注册配置消费者
+	"github.com/charry/constants/event_name"
 	"github.com/charry/consul"
+	_ "github.com/charry/consul/consumers" // 自动注册 consul 消费者
 	"github.com/charry/event"
-	"github.com/charry/event_name"
 	"github.com/charry/logger"
+	_ "github.com/charry/rpc/consumers" // 自动注册 rpc 消费者
 )
 
 // StartUp 启动应用

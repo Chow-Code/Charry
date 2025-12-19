@@ -2,10 +2,10 @@ package consumers
 
 import (
 	"github.com/charry/config"
+	"github.com/charry/constants/event_name"
+	"github.com/charry/constants/priority"
 	"github.com/charry/event"
-	"github.com/charry/event_name"
 	"github.com/charry/logger"
-	"github.com/charry/priority"
 	"github.com/charry/rpc"
 )
 

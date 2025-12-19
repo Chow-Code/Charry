@@ -2,11 +2,11 @@ package consumers
 
 import (
 	"github.com/charry/config"
+	"github.com/charry/constants/event_name"
+	"github.com/charry/constants/priority"
 	"github.com/charry/consul"
 	"github.com/charry/event"
-	"github.com/charry/event_name"
 	"github.com/charry/logger"
-	"github.com/charry/priority"
 )
 
 // ClientCreatedConsumer Consul 客户端创建完成事件消费者

@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/charry/config"
+	"github.com/charry/constants/event_name"
 	"github.com/charry/event"
-	"github.com/charry/event_name"
 	"github.com/charry/logger"
 )
 

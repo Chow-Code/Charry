@@ -3,8 +3,8 @@ package consul
 import (
 	"time"
 
+	"github.com/charry/constants/event_name"
 	"github.com/charry/event"
-	"github.com/charry/event_name"
 	"github.com/charry/logger"
 	consulapi "github.com/hashicorp/consul/api"
 )

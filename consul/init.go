@@ -5,6 +5,7 @@ import (
 
 	"github.com/charry/config"
 	"github.com/charry/event"
+	"github.com/charry/event_name"
 	"github.com/charry/logger"
 )
 
@@ -34,7 +35,7 @@ func Init(cfg config.Config) error {
 
 	logger.Info("✓ Consul 模块初始化完成")
 	// 发布 Consul 客户端创建完成事件
-	event.PublishEvent(ClientCreatedEventName, nil)
+	event.PublishEvent(event_name.ConsulClientCreated, nil)
 	return nil
 }
 

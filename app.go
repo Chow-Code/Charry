@@ -2,13 +2,10 @@ package main
 
 import (
 	"github.com/charry/config"
-	_ "github.com/charry/config/consumers" // 自动注册配置消费者
 	"github.com/charry/consul"
-	_ "github.com/charry/consul/consumers" // 自动注册 consul 消费者
 	"github.com/charry/event"
+	"github.com/charry/event_name"
 	"github.com/charry/logger"
-	"github.com/charry/rpc"
-	_ "github.com/charry/rpc/consumers" // 自动注册 rpc 消费者
 )
 
 // StartUp 启动应用
@@ -59,24 +56,24 @@ func StartUp() error {
 }
 
 // Shutdown 关闭应用
-// 按顺序关闭各个模块
+// 通过发布关闭事件，让各模块按优先级自动关闭
 func Shutdown() {
 	logger.Info("========================================")
 	logger.Info("开始关闭应用...")
 	logger.Info("========================================")
 
-	// 按照相反的顺序关闭模块
+	// 发布关闭事件，各模块按优先级自动关闭：
+	//   [0] ServiceDeregisterConsumer - 注销服务
+	//   [1] RPCStopConsumer - 停止 RPC 服务器
+	//   [2] ShutdownConsumer - 停止配置监听
+	event.PublishEvent(event_name.AppShutdown, nil)
 
-	// 1. 关闭 Consul 模块（先注销服务）
-	consul.Close()
+	// 等待所有同步消费者执行完成（已经在 PublishEvent 中同步执行）
 
-	// 2. 关闭 RPC 模块（再停止服务器）
-	rpc.Close()
-
-	// 3. 关闭事件模块
+	// 关闭事件模块
 	event.Close()
 
-	// 4. 刷新日志
+	// 刷新日志
 	logger.Info("✓ 应用已关闭")
 	logger.Sync()
 }

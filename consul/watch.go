@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/charry/event"
+	"github.com/charry/event_name"
 	"github.com/charry/logger"
 	consulapi "github.com/hashicorp/consul/api"
 )
@@ -97,7 +98,7 @@ func RegisterWatch(key string) {
 						Key:   key,
 						Value: value,
 					}
-					event.PublishEvent(KVChangedEventName, kvEvent)
+					event.PublishEvent(event_name.ConsulKVChanged, kvEvent)
 				}
 			}
 		}

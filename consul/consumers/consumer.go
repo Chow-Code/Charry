@@ -3,7 +3,9 @@ package consumers
 import (
 	"github.com/charry/consul"
 	"github.com/charry/event"
+	"github.com/charry/event_name"
 	"github.com/charry/logger"
+	"github.com/charry/priority"
 )
 
 // ServiceRegisterConsumer Consul 服务注册消费者
@@ -11,7 +13,7 @@ import (
 type ServiceRegisterConsumer struct{}
 
 func (c *ServiceRegisterConsumer) CaseEvent() []string {
-	return []string{consul.ClientCreatedEventName}
+	return []string{event_name.ConsulClientCreated}
 }
 
 func (c *ServiceRegisterConsumer) Triggered(evt *event.Event) error {
@@ -31,10 +33,32 @@ func (c *ServiceRegisterConsumer) Async() bool {
 }
 
 func (c *ServiceRegisterConsumer) Priority() uint32 {
-	return uint32(event.ConsulServiceRegister)
+	return priority.ConsulServiceRegister
+}
+
+// ServiceDeregisterConsumer Consul 服务注销消费者
+type ServiceDeregisterConsumer struct{}
+
+func (c *ServiceDeregisterConsumer) CaseEvent() []string {
+	return []string{event_name.AppShutdown}
+}
+
+func (c *ServiceDeregisterConsumer) Triggered(evt *event.Event) error {
+	logger.Info("关闭 Consul 模块...")
+	consul.Close()
+	return nil
+}
+
+func (c *ServiceDeregisterConsumer) Async() bool {
+	return false // 同步执行
+}
+
+func (c *ServiceDeregisterConsumer) Priority() uint32 {
+	return priority.ConsulServiceDeregister
 }
 
 // init 自动注册 Consul 相关的事件消费者
 func init() {
 	event.RegisterConsumer(&ServiceRegisterConsumer{})
+	event.RegisterConsumer(&ServiceDeregisterConsumer{})
 }

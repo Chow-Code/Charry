@@ -12,7 +12,9 @@
 |------|------|------|
 | **config** | 应用配置管理、环境变量加载、配置合并 | [document/config.md](document/config.md) |
 | **logger** | 日志输出 | 查看代码注释 |
-| **event** | 事件总线、生产者消费者模式 | 查看代码注释和示例 |
+| **event** | 事件总线、生产者消费者模式 | [document/event.md](document/event.md) ⭐ |
+| **event_name** | 事件名称常量 | 查看代码 |
+| **priority** | 优先级常量 | 查看代码 |
 | **consul** | 服务注册与发现 | [document/consul.md](document/consul.md) |
 | **rpc** | gRPC 服务器封装 | [document/rpc.md](document/rpc.md) |
 
@@ -274,6 +276,9 @@ Type 命名: 使用短横线连接（kebab-case）
 ## 📚 文档导航
 
 ### 核心模块文档
+- [启动流程](document/startup.md) - 应用启动和关闭流程 ⭐
+- [事件系统](document/event.md) - 事件驱动架构详解 ⭐
+- [Config 模块](document/config.md) - 配置管理
 - [Consul 模块](document/consul.md) - 服务注册与发现
 - [RPC 模块](document/rpc.md) - gRPC 服务器封装
 

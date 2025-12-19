@@ -4,14 +4,16 @@ import (
 	"github.com/charry/config"
 	"github.com/charry/consul"
 	"github.com/charry/event"
+	"github.com/charry/event_name"
 	"github.com/charry/logger"
+	"github.com/charry/priority"
 )
 
 // ClientCreatedConsumer Consul 客户端创建完成事件消费者
 type ClientCreatedConsumer struct{}
 
 func (c *ClientCreatedConsumer) CaseEvent() []string {
-	return []string{consul.ClientCreatedEventName}
+	return []string{event_name.ConsulClientCreated}
 }
 
 func (c *ClientCreatedConsumer) Triggered(evt *event.Event) error {
@@ -55,14 +57,14 @@ func (c *ClientCreatedConsumer) Async() bool {
 }
 
 func (c *ClientCreatedConsumer) Priority() uint32 {
-	return uint32(event.ConsulConfigLoad) // 最高优先级
+	return priority.ConsulConfigLoad
 }
 
 // KVChangedConsumer KV 变化事件消费者
 type KVChangedConsumer struct{}
 
 func (c *KVChangedConsumer) CaseEvent() []string {
-	return []string{consul.KVChangedEventName}
+	return []string{event_name.ConsulKVChanged}
 }
 
 func (c *KVChangedConsumer) Triggered(evt *event.Event) error {
@@ -91,7 +93,7 @@ func (c *KVChangedConsumer) Triggered(evt *event.Event) error {
 		}
 
 		// 发布配置变更事件
-		event.PublishEvent(consul.ConfigChangedEventName, &updatedCfg)
+		event.PublishEvent(event_name.ConfigChanged, &updatedCfg)
 	}
 
 	return nil
@@ -105,8 +107,30 @@ func (c *KVChangedConsumer) Priority() uint32 {
 	return 0 // 最高优先级
 }
 
+// ShutdownConsumer 应用关闭事件消费者
+type ShutdownConsumer struct{}
+
+func (c *ShutdownConsumer) CaseEvent() []string {
+	return []string{event_name.AppShutdown}
+}
+
+func (c *ShutdownConsumer) Triggered(evt *event.Event) error {
+	logger.Info("停止配置监听...")
+	consul.StopWatch()
+	return nil
+}
+
+func (c *ShutdownConsumer) Async() bool {
+	return false // 同步执行
+}
+
+func (c *ShutdownConsumer) Priority() uint32 {
+	return priority.ConsulClientClose
+}
+
 // init 自动注册配置相关的事件消费者
 func init() {
 	event.RegisterConsumer(&ClientCreatedConsumer{})
 	event.RegisterConsumer(&KVChangedConsumer{})
+	event.RegisterConsumer(&ShutdownConsumer{})
 }

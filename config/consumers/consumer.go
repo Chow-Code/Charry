@@ -15,14 +15,36 @@ func (c *ClientCreatedConsumer) CaseEvent() []string {
 }
 
 func (c *ClientCreatedConsumer) Triggered(evt *event.Event) error {
-	logger.Info("Consul 客户端已创建，注册配置监听...")
+	logger.Info("Consul 客户端已创建，加载配置并注册监听...")
 
 	// 获取配置
 	cfg := config.Get()
 
-	// 注册监听 AppConfigKey
+	// 1. 从 Consul 加载配置并合并
 	if cfg.AppConfigKey != "" {
+		logger.Infof("从 Consul 加载配置: %s", cfg.AppConfigKey)
+
+		if jsonStr, err := consul.GetKV(cfg.AppConfigKey); err != nil {
+			logger.Warnf("从 Consul 加载配置失败: %v，使用本地配置", err)
+		} else if jsonStr != "" {
+			logger.Info("✓ 配置已从 Consul 加载")
+
+			if err := config.MergeFromJSON(jsonStr); err != nil {
+				logger.Errorf("合并配置失败: %v", err)
+				return err
+			}
+
+			logger.Info("✓ 配置已合并")
+			updatedCfg := config.Get()
+			if mergedJSON, err := updatedCfg.ToJSON(); err == nil {
+				logger.Infof("\n%s", mergedJSON)
+			}
+		}
+
+		// 2. 注册监听 AppConfigKey
 		consul.RegisterWatch(cfg.AppConfigKey)
+	} else {
+		logger.Info("未配置 APP_CONFIG_KEY，跳过从 Consul 加载配置")
 	}
 
 	return nil
@@ -33,7 +55,7 @@ func (c *ClientCreatedConsumer) Async() bool {
 }
 
 func (c *ClientCreatedConsumer) Priority() uint32 {
-	return 0 // 最高优先级
+	return uint32(event.ConsulConfigLoad) // 最高优先级
 }
 
 // KVChangedConsumer KV 变化事件消费者
@@ -83,9 +105,8 @@ func (c *KVChangedConsumer) Priority() uint32 {
 	return 0 // 最高优先级
 }
 
-// Register 注册配置相关的事件消费者
-func Register() {
-	event.Register(&ClientCreatedConsumer{})
-	event.Register(&KVChangedConsumer{})
-	logger.Info("✓ 配置事件消费者已注册")
+// init 自动注册配置相关的事件消费者
+func init() {
+	event.RegisterConsumer(&ClientCreatedConsumer{})
+	event.RegisterConsumer(&KVChangedConsumer{})
 }

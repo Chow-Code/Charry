@@ -1,14 +1,14 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/charry/config"
-	"github.com/charry/config/consumers"
+	_ "github.com/charry/config/consumers" // 自动注册配置消费者
 	"github.com/charry/consul"
+	_ "github.com/charry/consul/consumers" // 自动注册 consul 消费者
 	"github.com/charry/event"
 	"github.com/charry/logger"
 	"github.com/charry/rpc"
+	_ "github.com/charry/rpc/consumers" // 自动注册 rpc 消费者
 )
 
 // StartUp 启动应用
@@ -30,58 +30,24 @@ func StartUp() error {
 	}
 	logger.Info("✓ 配置已初始化")
 
-	// 3. 初始化 Consul 客户端（创建全局 client）
-	cfg := config.Get()
-	if err := consul.Init(cfg); err != nil {
-		logger.Errorf("初始化 Consul 客户端失败: %v", err)
-		return err
-	}
-
-	// 4. 从 Consul 加载配置并合并
-	if cfg.AppConfigKey != "" {
-		logger.Infof("从 Consul 加载配置: %s", cfg.AppConfigKey)
-
-		if jsonStr, err := consul.GetKV(cfg.AppConfigKey); err != nil {
-			logger.Warnf("从 Consul 加载配置失败: %v，使用本地配置", err)
-		} else if jsonStr != "" {
-			logger.Info("✓ 配置已从 Consul 加载")
-
-			if err := config.MergeFromJSON(jsonStr); err != nil {
-				return fmt.Errorf("合并 Consul 配置失败: %w", err)
-			}
-
-			logger.Info("✓ 配置已合并")
-			cfg = config.Get() // 重新获取合并后的配置
-			if mergedJSON, err := cfg.ToJSON(); err == nil {
-				logger.Infof("\n%s", mergedJSON)
-			}
-		}
-	} else {
-		logger.Info("未配置 APP_CONFIG_KEY，跳过从 Consul 加载配置")
-	}
-
-	// 5. 初始化日志模块（已在 logger.init() 中完成）
-	logger.Info("✓ 日志模块已初始化")
-
-	// 6. 初始化事件模块
+	// 3. 初始化事件模块
 	if err := event.Init(10); err != nil {
 		logger.Errorf("初始化事件模块失败: %v", err)
 		return err
 	}
 
-	// 7. 注册配置相关的事件消费者
-	consumers.Register()
+	// 4. 初始化日志模块（已在 logger.init() 中完成）
+	logger.Info("✓ 日志模块已初始化")
 
-	// 8. 初始化 RPC 模块（创建并启动服务器）
-	cfg = config.Get() // 获取最新配置
-	if err := rpc.Init(cfg); err != nil {
-		logger.Errorf("初始化 RPC 模块失败: %v", err)
-		return err
-	}
-
-	// 9. 注册服务到 Consul
-	if err := consul.Register(); err != nil {
-		logger.Errorf("注册服务到 Consul 失败: %v", err)
+	// 5. 初始化 Consul 客户端（创建全局 client）
+	// 注意：所有消费者已通过 init() 自动注册
+	// 创建后会触发 ClientCreatedEvent，按优先级自动执行：
+	//   [0] ClientCreatedConsumer - 加载 Consul 配置
+	//   [1] RPCStartConsumer - 启动 RPC 服务器
+	//   [2] ServiceRegisterConsumer - 注册服务到 Consul
+	cfg := config.Get()
+	if err := consul.Init(cfg); err != nil {
+		logger.Errorf("初始化 Consul 客户端失败: %v", err)
 		return err
 	}
 

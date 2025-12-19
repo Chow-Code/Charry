@@ -7,7 +7,16 @@ import (
 var (
 	// GlobalBus 全局事件总线
 	GlobalBus *Bus
+
+	// pendingConsumers 待注册的消费者列表
+	pendingConsumers []Consumer
 )
+
+// RegisterConsumer 注册消费者到待注册列表
+// 在各 consumers 包的 init() 中调用
+func RegisterConsumer(consumer Consumer) {
+	pendingConsumers = append(pendingConsumers, consumer)
+}
 
 // Init 初始化事件模块
 func Init(workerCount int) error {
@@ -18,6 +27,13 @@ func Init(workerCount int) error {
 
 	// 启动事件总线
 	GlobalBus.Start()
+
+	// 注册所有待注册的消费者
+	for _, consumer := range pendingConsumers {
+		GlobalBus.Register(consumer)
+	}
+	logger.Infof("✓ 已自动注册 %d 个事件消费者", len(pendingConsumers))
+	pendingConsumers = nil // 清空列表
 
 	logger.Info("✓ 事件模块初始化完成")
 	return nil
@@ -54,4 +70,3 @@ func Publish(event *Event) {
 func PublishEvent(name string, data interface{}) {
 	Publish(NewEvent(name, data))
 }
-

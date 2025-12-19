@@ -79,9 +79,9 @@ func Get() Config {
 	return *globalConfig
 }
 
-// GetPtr 获取全局配置的指针
-// 注意：只在需要修改配置时使用（如从 Consul 合并）
-func GetPtr() *Config {
+// getPtr 获取全局配置的指针（内部使用）
+// 只在 config 模块内部使用
+func getPtr() *Config {
 	return globalConfig
 }
 
@@ -181,11 +181,16 @@ func setFieldValue(field reflect.Value, value interface{}) error {
 	return nil
 }
 
-// MergeFromJSON 从 JSON 字符串合并配置
-// 只解析 JSON 中存在的字段并合并到当前 Config
-func (c *Config) MergeFromJSON(jsonStr string) error {
+// MergeFromJSON 从 JSON 字符串合并配置到全局配置
+// 只解析 JSON 中存在的字段并合并
+func MergeFromJSON(jsonStr string) error {
 	if jsonStr == "" {
 		return nil
+	}
+
+	cfg := getPtr()
+	if cfg == nil {
+		return fmt.Errorf("配置未初始化")
 	}
 
 	// 解析 JSON 到 map
@@ -195,7 +200,7 @@ func (c *Config) MergeFromJSON(jsonStr string) error {
 	}
 
 	// 使用反射合并 JSON 数据
-	configValue := reflect.ValueOf(c).Elem()
+	configValue := reflect.ValueOf(cfg).Elem()
 	return mergeFromMap(configValue, jsonMap)
 }
 

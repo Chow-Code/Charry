@@ -12,7 +12,7 @@ var (
 
 // Init 初始化 RPC 模块
 // 创建并启动 gRPC 服务器
-func Init(cfg *config.Config) error {
+func Init(cfg config.Config) error {
 	logger.Info("初始化 RPC 模块...")
 
 	// 创建 gRPC 服务器

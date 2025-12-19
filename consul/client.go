@@ -3,17 +3,17 @@ package consul
 import (
 	"fmt"
 
+	"github.com/charry/config"
 	consulapi "github.com/hashicorp/consul/api"
 )
 
 // Client Consul 客户端封装
 type Client struct {
 	client *consulapi.Client
-	config *Config
 }
 
 // NewClient 创建 Consul 客户端
-func NewClient(cfg *Config) (*Client, error) {
+func NewClient(cfg *config.ConsulConfig) (*Client, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("consul config is nil")
 	}
@@ -37,18 +37,12 @@ func NewClient(cfg *Config) (*Client, error) {
 
 	return &Client{
 		client: client,
-		config: cfg,
 	}, nil
 }
 
 // GetClient 获取原生 Consul API 客户端
 func (c *Client) GetClient() *consulapi.Client {
 	return c.client
-}
-
-// GetConfig 获取配置
-func (c *Client) GetConfig() *Config {
-	return c.config
 }
 
 // Ping 测试 Consul 连接

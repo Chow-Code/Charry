@@ -16,4 +16,3 @@ func NewEvent(name string, data interface{}) *Event {
 		Data: data,
 	}
 }
-

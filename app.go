@@ -1,7 +1,10 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/charry/config"
+	"github.com/charry/config/consumers"
 	"github.com/charry/consul"
 	"github.com/charry/event"
 	"github.com/charry/logger"
@@ -27,13 +30,34 @@ func StartUp() error {
 	}
 	logger.Info("✓ 配置已初始化")
 
-	// 3. 获取配置指针
-	cfg := config.GetPtr()
-
-	// 4. 从 Consul 加载配置并合并（如果配置了 AppConfigKey）
-	if err := consul.LoadConfigFromConsul(cfg); err != nil {
-		logger.Errorf("从 Consul 加载配置失败: %v", err)
+	// 3. 初始化 Consul 客户端（创建全局 client）
+	cfg := config.Get()
+	if err := consul.Init(cfg); err != nil {
+		logger.Errorf("初始化 Consul 客户端失败: %v", err)
 		return err
+	}
+
+	// 4. 从 Consul 加载配置并合并
+	if cfg.AppConfigKey != "" {
+		logger.Infof("从 Consul 加载配置: %s", cfg.AppConfigKey)
+
+		if jsonStr, err := consul.GetKV(cfg.AppConfigKey); err != nil {
+			logger.Warnf("从 Consul 加载配置失败: %v，使用本地配置", err)
+		} else if jsonStr != "" {
+			logger.Info("✓ 配置已从 Consul 加载")
+
+			if err := config.MergeFromJSON(jsonStr); err != nil {
+				return fmt.Errorf("合并 Consul 配置失败: %w", err)
+			}
+
+			logger.Info("✓ 配置已合并")
+			cfg = config.Get() // 重新获取合并后的配置
+			if mergedJSON, err := cfg.ToJSON(); err == nil {
+				logger.Infof("\n%s", mergedJSON)
+			}
+		}
+	} else {
+		logger.Info("未配置 APP_CONFIG_KEY，跳过从 Consul 加载配置")
 	}
 
 	// 5. 初始化日志模块（已在 logger.init() 中完成）
@@ -45,20 +69,21 @@ func StartUp() error {
 		return err
 	}
 
-	// 7. 初始化 RPC 模块（创建并启动服务器）
+	// 7. 注册配置相关的事件消费者
+	consumers.Register()
+
+	// 8. 初始化 RPC 模块（创建并启动服务器）
+	cfg = config.Get() // 获取最新配置
 	if err := rpc.Init(cfg); err != nil {
 		logger.Errorf("初始化 RPC 模块失败: %v", err)
 		return err
 	}
 
-	// 8. 初始化 Consul 模块（服务注册）
-	if err := consul.Init(cfg); err != nil {
-		logger.Errorf("初始化 Consul 模块失败: %v", err)
+	// 9. 注册服务到 Consul
+	if err := consul.Register(); err != nil {
+		logger.Errorf("注册服务到 Consul 失败: %v", err)
 		return err
 	}
-
-	// 9. 启动配置监听（监听 Consul KV 变化）
-	consul.WatchConfig(cfg)
 
 	logger.Info("========================================")
 	logger.Info("✓ 应用启动完成")

@@ -14,5 +14,7 @@ type Consumer interface {
 	// 返回 true：异步执行（默认）
 	// 返回 false：同步执行（由生产者线程直接执行）
 	Async() bool
-}
 
+	// Priority 事件优先级 值越大优先级越低
+	Priority() uint32
+}

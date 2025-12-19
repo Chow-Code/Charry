@@ -119,56 +119,58 @@ func convertMetadata(metadata map[string]any) map[string]string {
 
 // createHealthCheck 根据配置创建健康检查
 func (c *Client) createHealthCheck(addr string, port int) *consulapi.AgentServiceCheck {
-	switch c.config.HealthCheckType {
-	case HealthCheckTypeHTTP:
+	cfg := config.Get()
+
+	switch cfg.Consul.HealthCheckType {
+	case "http":
 		// HTTP 健康检查
-		path := c.config.HealthCheckPath
+		path := cfg.Consul.HealthCheckPath
 		if path == "" {
 			path = "/health"
 		}
 		url := fmt.Sprintf("http://%s:%d%s", addr, port, path)
 		return &consulapi.AgentServiceCheck{
 			HTTP:                           url,
-			Interval:                       c.config.HealthCheckInterval,
-			Timeout:                        c.config.HealthCheckTimeout,
-			DeregisterCriticalServiceAfter: c.config.DeregisterCriticalServiceAfter,
+			Interval:                       cfg.Consul.HealthCheckInterval,
+			Timeout:                        cfg.Consul.HealthCheckTimeout,
+			DeregisterCriticalServiceAfter: cfg.Consul.DeregisterCriticalServiceAfter,
 		}
 
-	case HealthCheckTypeGRPC:
+	case "grpc":
 		// gRPC 健康检查（使用 gRPC 健康检查协议）
 		// 格式：host:port[/service]
 		grpcAddr := fmt.Sprintf("%s:%d", addr, port)
-		if c.config.HealthCheckPath != "" {
+		if cfg.Consul.HealthCheckPath != "" {
 			// 移除前导斜杠
-			service := strings.TrimPrefix(c.config.HealthCheckPath, "/")
+			service := strings.TrimPrefix(cfg.Consul.HealthCheckPath, "/")
 			grpcAddr = fmt.Sprintf("%s/%s", grpcAddr, service)
 		}
 		return &consulapi.AgentServiceCheck{
 			GRPC:                           grpcAddr,
-			GRPCUseTLS:                     c.config.GRPCUseTLS,
-			Interval:                       c.config.HealthCheckInterval,
-			Timeout:                        c.config.HealthCheckTimeout,
-			DeregisterCriticalServiceAfter: c.config.DeregisterCriticalServiceAfter,
+			GRPCUseTLS:                     cfg.Consul.GRPCUseTLS,
+			Interval:                       cfg.Consul.HealthCheckInterval,
+			Timeout:                        cfg.Consul.HealthCheckTimeout,
+			DeregisterCriticalServiceAfter: cfg.Consul.DeregisterCriticalServiceAfter,
 		}
 
-	case HealthCheckTypeTCP:
+	case "tcp":
 		// TCP 健康检查（只检查端口是否可达）
 		tcpAddr := fmt.Sprintf("%s:%d", addr, port)
 		return &consulapi.AgentServiceCheck{
 			TCP:                            tcpAddr,
-			Interval:                       c.config.HealthCheckInterval,
-			Timeout:                        c.config.HealthCheckTimeout,
-			DeregisterCriticalServiceAfter: c.config.DeregisterCriticalServiceAfter,
+			Interval:                       cfg.Consul.HealthCheckInterval,
+			Timeout:                        cfg.Consul.HealthCheckTimeout,
+			DeregisterCriticalServiceAfter: cfg.Consul.DeregisterCriticalServiceAfter,
 		}
 
-	case HealthCheckTypeTTL:
+	case "ttl":
 		// TTL 健康检查（服务自己定期报告健康状态）
 		return &consulapi.AgentServiceCheck{
-			TTL:                            c.config.HealthCheckTTL,
-			DeregisterCriticalServiceAfter: c.config.DeregisterCriticalServiceAfter,
+			TTL:                            cfg.Consul.HealthCheckTTL,
+			DeregisterCriticalServiceAfter: cfg.Consul.DeregisterCriticalServiceAfter,
 		}
 
-	case HealthCheckTypeNone:
+	case "none":
 		// 不进行健康检查
 		return nil
 
@@ -177,10 +179,10 @@ func (c *Client) createHealthCheck(addr string, port int) *consulapi.AgentServic
 		grpcAddr := fmt.Sprintf("%s:%d", addr, port)
 		return &consulapi.AgentServiceCheck{
 			GRPC:                           grpcAddr,
-			GRPCUseTLS:                     c.config.GRPCUseTLS,
-			Interval:                       c.config.HealthCheckInterval,
-			Timeout:                        c.config.HealthCheckTimeout,
-			DeregisterCriticalServiceAfter: c.config.DeregisterCriticalServiceAfter,
+			GRPCUseTLS:                     cfg.Consul.GRPCUseTLS,
+			Interval:                       cfg.Consul.HealthCheckInterval,
+			Timeout:                        cfg.Consul.HealthCheckTimeout,
+			DeregisterCriticalServiceAfter: cfg.Consul.DeregisterCriticalServiceAfter,
 		}
 	}
 }

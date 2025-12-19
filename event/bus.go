@@ -1,6 +1,7 @@
 package event
 
 import (
+	"sort"
 	"sync"
 
 	"github.com/charry/logger"
@@ -52,6 +53,7 @@ func (b *Bus) Register(consumer Consumer) {
 
 // Publish 发布事件
 // 注意：消费者只在启动时注册，运行时只读，因此不需要加锁
+// 按优先级顺序触发消费者（优先级数值越小越先执行）
 func (b *Bus) Publish(event *Event) {
 	consumers := b.consumers[event.Name]
 
@@ -60,7 +62,15 @@ func (b *Bus) Publish(event *Event) {
 		return
 	}
 
-	for _, consumer := range consumers {
+	// 按优先级排序（正序）
+	sortedConsumers := make([]Consumer, len(consumers))
+	copy(sortedConsumers, consumers)
+	sort.Slice(sortedConsumers, func(i, j int) bool {
+		return sortedConsumers[i].Priority() < sortedConsumers[j].Priority()
+	})
+
+	// 按优先级顺序触发
+	for _, consumer := range sortedConsumers {
 		if consumer.Async() {
 			// 异步执行：放入队列
 			select {

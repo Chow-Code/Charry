@@ -1,8 +1,8 @@
 package consul
 
 import (
+	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/charry/config"
 	consulapi "github.com/hashicorp/consul/api"
@@ -31,9 +31,10 @@ func (c *Client) RegisterService(appConfig *config.AppConfig) error {
 		fmt.Sprintf("env:%s", appConfig.Environment),
 	}
 
-	// 从 Metadata 中添加额外标签
-	for key, value := range appConfig.Metadata {
-		tags = append(tags, fmt.Sprintf("%s:%v", key, value))
+	// 构建 Metadata（将 AppConfig 展开）
+	meta, err := buildMetadata(appConfig)
+	if err != nil {
+		return fmt.Errorf("构建 Metadata 失败: %w", err)
 	}
 
 	// 构建服务注册信息
@@ -43,13 +44,12 @@ func (c *Client) RegisterService(appConfig *config.AppConfig) error {
 		Tags:    tags,
 		Address: serviceAddr,
 		Port:    servicePort,
-		Meta:    convertMetadata(appConfig.Metadata),
+		Meta:    meta,
 		Check:   c.createHealthCheck(serviceAddr, servicePort),
 	}
 
 	// 注册服务
-	err := c.client.Agent().ServiceRegister(registration)
-	if err != nil {
+	if err := c.client.Agent().ServiceRegister(registration); err != nil {
 		return fmt.Errorf("failed to register service: %w", err)
 	}
 
@@ -108,82 +108,63 @@ func (c *Client) ListServices() (map[string][]string, error) {
 	return result, nil
 }
 
-// convertMetadata 转换 metadata 为 map[string]string
-func convertMetadata(metadata map[string]any) map[string]string {
-	result := make(map[string]string)
-	for key, value := range metadata {
-		result[key] = fmt.Sprintf("%v", value)
+// buildMetadata 构建 Consul Metadata
+// 将 AppConfig 的字段展开到 Meta 中，data 字段转换为 JSON 字符串
+func buildMetadata(appConfig *config.AppConfig) (map[string]string, error) {
+	meta := make(map[string]string)
+
+	// 1. 先将 AppConfig 序列化为 JSON
+	appConfigJSON, err := json.Marshal(appConfig)
+	if err != nil {
+		return nil, fmt.Errorf("序列化 AppConfig 失败: %w", err)
 	}
-	return result
+
+	// 2. 解析 JSON 到 map
+	var jsonMap map[string]interface{}
+	if err := json.Unmarshal(appConfigJSON, &jsonMap); err != nil {
+		return nil, fmt.Errorf("解析 AppConfig JSON 失败: %w", err)
+	}
+
+	// 3. 遍历 JSON 的 key-value
+	for key, value := range jsonMap {
+		switch key {
+		case "data":
+			// data 字段特殊处理：转换为 JSON 字符串
+			if dataValue, ok := value.(map[string]interface{}); ok && len(dataValue) > 0 {
+				dataJSON, err := json.Marshal(dataValue)
+				if err == nil {
+					meta["data"] = string(dataJSON)
+				}
+			}
+		case "addr":
+			// addr 字段特殊处理：展开为 host 和 port
+			if addrValue, ok := value.(map[string]interface{}); ok {
+				if host, ok := addrValue["host"].(string); ok {
+					meta["host"] = host
+				}
+				if port, ok := addrValue["port"].(float64); ok {
+					meta["port"] = fmt.Sprintf("%d", int(port))
+				}
+			}
+		default:
+			// 其他字段：直接转换为字符串
+			meta[key] = fmt.Sprintf("%v", value)
+		}
+	}
+
+	return meta, nil
 }
 
 // createHealthCheck 根据配置创建健康检查
+// 只使用 TCP 端口检查（简单可靠）
 func (c *Client) createHealthCheck(addr string, port int) *consulapi.AgentServiceCheck {
 	cfg := config.Get()
 
-	switch cfg.Consul.HealthCheckType {
-	case "http":
-		// HTTP 健康检查
-		path := cfg.Consul.HealthCheckPath
-		if path == "" {
-			path = "/health"
-		}
-		url := fmt.Sprintf("http://%s:%d%s", addr, port, path)
-		return &consulapi.AgentServiceCheck{
-			HTTP:                           url,
-			Interval:                       cfg.Consul.HealthCheckInterval,
-			Timeout:                        cfg.Consul.HealthCheckTimeout,
-			DeregisterCriticalServiceAfter: cfg.Consul.DeregisterCriticalServiceAfter,
-		}
-
-	case "grpc":
-		// gRPC 健康检查（使用 gRPC 健康检查协议）
-		// 格式：host:port[/service]
-		grpcAddr := fmt.Sprintf("%s:%d", addr, port)
-		if cfg.Consul.HealthCheckPath != "" {
-			// 移除前导斜杠
-			service := strings.TrimPrefix(cfg.Consul.HealthCheckPath, "/")
-			grpcAddr = fmt.Sprintf("%s/%s", grpcAddr, service)
-		}
-		return &consulapi.AgentServiceCheck{
-			GRPC:                           grpcAddr,
-			GRPCUseTLS:                     cfg.Consul.GRPCUseTLS,
-			Interval:                       cfg.Consul.HealthCheckInterval,
-			Timeout:                        cfg.Consul.HealthCheckTimeout,
-			DeregisterCriticalServiceAfter: cfg.Consul.DeregisterCriticalServiceAfter,
-		}
-
-	case "tcp":
-		// TCP 健康检查（只检查端口是否可达）
-		tcpAddr := fmt.Sprintf("%s:%d", addr, port)
-		return &consulapi.AgentServiceCheck{
-			TCP:                            tcpAddr,
-			Interval:                       cfg.Consul.HealthCheckInterval,
-			Timeout:                        cfg.Consul.HealthCheckTimeout,
-			DeregisterCriticalServiceAfter: cfg.Consul.DeregisterCriticalServiceAfter,
-		}
-
-	case "ttl":
-		// TTL 健康检查（服务自己定期报告健康状态）
-		return &consulapi.AgentServiceCheck{
-			TTL:                            cfg.Consul.HealthCheckTTL,
-			DeregisterCriticalServiceAfter: cfg.Consul.DeregisterCriticalServiceAfter,
-		}
-
-	case "none":
-		// 不进行健康检查
-		return nil
-
-	default:
-		// 默认使用 gRPC 检查
-		grpcAddr := fmt.Sprintf("%s:%d", addr, port)
-		return &consulapi.AgentServiceCheck{
-			GRPC:                           grpcAddr,
-			GRPCUseTLS:                     cfg.Consul.GRPCUseTLS,
-			Interval:                       cfg.Consul.HealthCheckInterval,
-			Timeout:                        cfg.Consul.HealthCheckTimeout,
-			DeregisterCriticalServiceAfter: cfg.Consul.DeregisterCriticalServiceAfter,
-		}
+	return &consulapi.AgentServiceCheck{
+		TCP:                            fmt.Sprintf("%s:%d", addr, port),
+		Interval:                       cfg.Consul.HealthCheckInterval,
+		Timeout:                        cfg.Consul.HealthCheckTimeout,
+		DeregisterCriticalServiceAfter: cfg.Consul.DeregisterCriticalServiceAfter,
 	}
 }
 

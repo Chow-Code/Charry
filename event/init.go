@@ -1,6 +1,7 @@
 package event
 
 import (
+	"github.com/charry/config"
 	"github.com/charry/logger"
 )
 
@@ -19,8 +20,15 @@ func RegisterConsumer(consumer Consumer) {
 }
 
 // Init 初始化事件模块
-func Init(workerCount int) error {
+func Init() error {
 	logger.Info("初始化事件模块...")
+
+	// 从配置获取工作协程数
+	cfg := config.Get()
+	workerCount := cfg.Server.EventWorkerCount
+	if workerCount <= 0 {
+		workerCount = 10 // 默认值
+	}
 
 	// 创建事件总线
 	GlobalBus = NewBus(workerCount)

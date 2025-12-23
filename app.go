@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "github.com/charry/cluster/consumers" // 自动注册集群消费者
 	"github.com/charry/config"
 	_ "github.com/charry/config/consumers" // 自动注册配置消费者
 	"github.com/charry/constants/event_name"
@@ -31,7 +32,7 @@ func StartUp() error {
 	logger.Info("✓ 配置已初始化")
 
 	// 3. 初始化事件模块
-	if err := event.Init(10); err != nil {
+	if err := event.Init(); err != nil {
 		logger.Errorf("初始化事件模块失败: %v", err)
 		return err
 	}

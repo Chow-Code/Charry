@@ -16,20 +16,22 @@ var (
 type Config struct {
 	App          AppConfig    `json:"app"`
 	Consul       ConsulConfig `json:"consul"`
+	Server       ServerConfig `json:"server"`
 	AppConfigKey string       `json:"-"` // Consul KV 配置键（不序列化）
+}
+
+// ServerConfig 服务器配置
+type ServerConfig struct {
+	EventWorkerCount int `json:"event_worker_count"` // 事件处理工作协程数
 }
 
 // ConsulConfig Consul 配置
 type ConsulConfig struct {
 	Address                        string `json:"address"`
 	Datacenter                     string `json:"datacenter"`
-	HealthCheckType                string `json:"health_check_type"`
-	HealthCheckPath                string `json:"health_check_path"`
 	HealthCheckInterval            string `json:"health_check_interval"`
 	HealthCheckTimeout             string `json:"health_check_timeout"`
 	DeregisterCriticalServiceAfter string `json:"deregister_critical_service_after"`
-	HealthCheckTTL                 string `json:"health_check_ttl"`
-	GRPCUseTLS                     bool   `json:"grpc_use_tls"`
 }
 
 // AppConfig 应用配置
@@ -38,7 +40,7 @@ type AppConfig struct {
 	Type        string         `json:"type"`
 	Environment string         `json:"environment"` // dev, test, prod
 	Addr        Addr           `json:"addr"`
-	Metadata    map[string]any `json:"metadata"`
+	Data        map[string]any `json:"data"` // 自定义数据
 }
 
 // Addr 地址配置

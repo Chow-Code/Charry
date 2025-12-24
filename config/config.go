@@ -23,6 +23,7 @@ type Config struct {
 // ServerConfig 服务器配置
 type ServerConfig struct {
 	EventWorkerCount int `json:"event_worker_count"` // 事件处理工作协程数
+	ClusterConnCount int `json:"cluster_conn_count"` // 集群节点连接数（每个节点）
 }
 
 // ConsulConfig Consul 配置

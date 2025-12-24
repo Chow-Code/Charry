@@ -13,7 +13,8 @@
     "deregister_critical_service_after": "30s"
   },
   "server": {
-    "event_worker_count": 10
+    "event_worker_count": 10,
+    "cluster_conn_count": 4
   }
 }
 

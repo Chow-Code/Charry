@@ -9,7 +9,7 @@ import (
 	_ "github.com/charry/consul/consumers" // 自动注册 consul 消费者
 	"github.com/charry/event"
 	"github.com/charry/logger"
-	_ "github.com/charry/rpc/consumers" // 自动注册 rpc 消费者
+	_ "github.com/charry/tcp/consumers" // 自动注册 tcp 消费者
 )
 
 // StartUp 启动应用

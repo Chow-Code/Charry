@@ -17,13 +17,14 @@ var HeartbeatInterval = 10 * time.Second
 
 // SendHeartbeat 发送心跳消息
 func SendHeartbeat(conn net.Conn) error {
-	req := &ReqMsg{
-		Module:  HeartbeatModule,
-		Cmd:     HeartbeatCmd,
-		Payload: []byte{}, // 空 payload
+	req := &ClusterReqMsg{
+		Module:    HeartbeatModule,
+		Cmd:       HeartbeatCmd,
+		SessionId: "heartbeat", // 心跳固定 sessionId
+		Payload:   []byte{},    // 空 payload
 	}
 
-	data := EncodeReqMsg(req)
+	data := EncodeClusterReqMsg(req)
 	_, err := conn.Write(data)
 	if err != nil {
 		return err
@@ -38,16 +39,17 @@ func IsHeartbeatMsg(module, cmd uint32) bool {
 }
 
 // HandleHeartbeatReq 处理心跳请求
-func HandleHeartbeatReq(conn net.Conn, req *ReqMsg) error {
+func HandleHeartbeatReq(conn net.Conn, req *ClusterReqMsg) error {
 	// 响应心跳
-	resp := &RespMsg{
-		Module:  req.Module,
-		Cmd:     req.Cmd,
-		Code:    HeartbeatCode,
-		Payload: []byte{},
+	resp := &ClusterRespMsg{
+		Module:    req.Module,
+		Cmd:       req.Cmd,
+		SessionId: req.SessionId,
+		Code:      HeartbeatCode,
+		Payload:   []byte{},
 	}
 
-	data := EncodeRespMsg(resp)
+	data := EncodeClusterRespMsg(resp)
 	_, err := conn.Write(data)
 	return err
 }

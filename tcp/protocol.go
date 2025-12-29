@@ -14,38 +14,41 @@ const (
 
 // 消息头长度
 const (
-	HeaderLenSize    = 4 // Len 字段长度
-	HeaderIsRespSize = 1 // IsResp 字段长度
-	HeaderModuleSize = 4 // Module 字段长度
-	HeaderCmdSize    = 4 // Cmd 字段长度
-	HeaderCodeSize   = 4 // Code 字段长度（仅响应消息）
+	HeaderLenSize       = 4  // Len 字段长度
+	HeaderIsRespSize    = 1  // IsResp 字段长度
+	HeaderModuleSize    = 4  // Module 字段长度
+	HeaderCmdSize       = 4  // Cmd 字段长度
+	HeaderSessionIdSize = 36 // SessionId 字段长度（UUID）
+	HeaderCodeSize      = 4  // Code 字段长度（仅响应消息）
 
-	// 请求消息头长度：4 + 1 + 4 + 4 = 13
-	ReqHeaderSize = HeaderLenSize + HeaderIsRespSize + HeaderModuleSize + HeaderCmdSize
+	// 请求消息头长度：4 + 1 + 4 + 4 + 36 = 49
+	ClusterReqHeaderSize = HeaderLenSize + HeaderIsRespSize + HeaderModuleSize + HeaderCmdSize + HeaderSessionIdSize
 
-	// 响应消息头长度：4 + 1 + 4 + 4 + 4 = 17
-	RespHeaderSize = HeaderLenSize + HeaderIsRespSize + HeaderModuleSize + HeaderCmdSize + HeaderCodeSize
+	// 响应消息头长度：4 + 1 + 4 + 4 + 36 + 4 = 53
+	ClusterRespHeaderSize = HeaderLenSize + HeaderIsRespSize + HeaderModuleSize + HeaderCmdSize + HeaderSessionIdSize + HeaderCodeSize
 )
 
-// ReqMsg 请求消息
-type ReqMsg struct {
-	Module  uint32 // 模块号
-	Cmd     uint32 // 命令号
-	Payload []byte // 消息体（PB 序列化）
+// ClusterReqMsg 集群请求消息
+type ClusterReqMsg struct {
+	Module    uint32 // 模块号
+	Cmd       uint32 // 命令号
+	SessionId string // 会话ID（UUID，36字节）
+	Payload   []byte // 消息体（PB 序列化）
 }
 
-// RespMsg 响应消息
-type RespMsg struct {
-	Module  uint32 // 模块号
-	Cmd     uint32 // 命令号
-	Code    uint32 // 错误码（0 为正常）
-	Payload []byte // 消息体（PB 序列化）
+// ClusterRespMsg 集群响应消息
+type ClusterRespMsg struct {
+	Module    uint32 // 模块号
+	Cmd       uint32 // 命令号
+	SessionId string // 会话ID（UUID，36字节）
+	Code      uint32 // 错误码（0 为正常）
+	Payload   []byte // 消息体（PB 序列化）
 }
 
-// EncodeReqMsg 编码请求消息
-func EncodeReqMsg(msg *ReqMsg) []byte {
+// EncodeClusterReqMsg 编码请求消息
+func EncodeClusterReqMsg(msg *ClusterReqMsg) []byte {
 	payloadLen := len(msg.Payload)
-	totalLen := ReqHeaderSize + payloadLen
+	totalLen := ClusterReqHeaderSize + payloadLen
 
 	buf := make([]byte, totalLen)
 
@@ -61,16 +64,19 @@ func EncodeReqMsg(msg *ReqMsg) []byte {
 	// Cmd (4字节)
 	binary.BigEndian.PutUint32(buf[9:13], msg.Cmd)
 
+	// SessionId (36字节) - UUID
+	copy(buf[13:49], []byte(padSessionId(msg.SessionId)))
+
 	// Payload (N字节)
-	copy(buf[13:], msg.Payload)
+	copy(buf[49:], msg.Payload)
 
 	return buf
 }
 
-// EncodeRespMsg 编码响应消息
-func EncodeRespMsg(msg *RespMsg) []byte {
+// EncodeClusterRespMsg 编码响应消息
+func EncodeClusterRespMsg(msg *ClusterRespMsg) []byte {
 	payloadLen := len(msg.Payload)
-	totalLen := RespHeaderSize + payloadLen
+	totalLen := ClusterRespHeaderSize + payloadLen
 
 	buf := make([]byte, totalLen)
 
@@ -86,11 +92,14 @@ func EncodeRespMsg(msg *RespMsg) []byte {
 	// Cmd (4字节)
 	binary.BigEndian.PutUint32(buf[9:13], msg.Cmd)
 
+	// SessionId (36字节) - UUID
+	copy(buf[13:49], []byte(padSessionId(msg.SessionId)))
+
 	// Code (4字节) - 错误码
-	binary.BigEndian.PutUint32(buf[13:17], msg.Code)
+	binary.BigEndian.PutUint32(buf[49:53], msg.Code)
 
 	// Payload (N字节)
-	copy(buf[17:], msg.Payload)
+	copy(buf[53:], msg.Payload)
 
 	return buf
 }
@@ -114,46 +123,68 @@ func DecodeMsg(reader io.Reader) (interface{}, error) {
 	// 3. 根据类型解码
 	switch isResp {
 	case MsgTypeRequest:
-		return decodeReqMsg(reader, msgLen)
+		return decodeClusterReqMsg(reader, msgLen)
 	case MsgTypeResponse:
-		return decodeRespMsg(reader, msgLen)
+		return decodeClusterRespMsg(reader, msgLen)
 	default:
 		return nil, fmt.Errorf("未知消息类型: %d", isResp)
 	}
 }
 
-// decodeReqMsg 解码请求消息
-func decodeReqMsg(reader io.Reader, msgLen uint32) (*ReqMsg, error) {
-	// 读取剩余部分：Module(4) + Cmd(4) + Payload(N)
+// padSessionId 填充 SessionId 到 36 字节
+func padSessionId(sessionId string) string {
+	if len(sessionId) >= 36 {
+		return sessionId[:36]
+	}
+	// 不足36字节，右侧填充空格
+	return sessionId + string(make([]byte, 36-len(sessionId)))
+}
+
+// trimSessionId 去除 SessionId 的填充
+func trimSessionId(sessionId string) string {
+	// 去除右侧空格和 null 字符
+	for i := len(sessionId) - 1; i >= 0; i-- {
+		if sessionId[i] != ' ' && sessionId[i] != 0 {
+			return sessionId[:i+1]
+		}
+	}
+	return ""
+}
+
+// decodeClusterReqMsg 解码请求消息
+func decodeClusterReqMsg(reader io.Reader, msgLen uint32) (*ClusterReqMsg, error) {
+	// 读取剩余部分：Module(4) + Cmd(4) + SessionId(36) + Payload(N)
 	remainLen := msgLen - 1 // 减去已读的 IsResp
 	buf := make([]byte, remainLen)
 	if _, err := io.ReadFull(reader, buf); err != nil {
 		return nil, fmt.Errorf("读取请求消息失败: %w", err)
 	}
 
-	msg := &ReqMsg{
-		Module:  binary.BigEndian.Uint32(buf[0:4]),
-		Cmd:     binary.BigEndian.Uint32(buf[4:8]),
-		Payload: buf[8:],
+	msg := &ClusterReqMsg{
+		Module:    binary.BigEndian.Uint32(buf[0:4]),
+		Cmd:       binary.BigEndian.Uint32(buf[4:8]),
+		SessionId: trimSessionId(string(buf[8:44])),
+		Payload:   buf[44:],
 	}
 
 	return msg, nil
 }
 
-// decodeRespMsg 解码响应消息
-func decodeRespMsg(reader io.Reader, msgLen uint32) (*RespMsg, error) {
-	// 读取剩余部分：Module(4) + Cmd(4) + Code(4) + Payload(N)
+// decodeClusterRespMsg 解码响应消息
+func decodeClusterRespMsg(reader io.Reader, msgLen uint32) (*ClusterRespMsg, error) {
+	// 读取剩余部分：Module(4) + Cmd(4) + SessionId(36) + Code(4) + Payload(N)
 	remainLen := msgLen - 1 // 减去已读的 IsResp
 	buf := make([]byte, remainLen)
 	if _, err := io.ReadFull(reader, buf); err != nil {
 		return nil, fmt.Errorf("读取响应消息失败: %w", err)
 	}
 
-	msg := &RespMsg{
-		Module:  binary.BigEndian.Uint32(buf[0:4]),
-		Cmd:     binary.BigEndian.Uint32(buf[4:8]),
-		Code:    binary.BigEndian.Uint32(buf[8:12]),
-		Payload: buf[12:],
+	msg := &ClusterRespMsg{
+		Module:    binary.BigEndian.Uint32(buf[0:4]),
+		Cmd:       binary.BigEndian.Uint32(buf[4:8]),
+		SessionId: trimSessionId(string(buf[8:44])),
+		Code:      binary.BigEndian.Uint32(buf[44:48]),
+		Payload:   buf[48:],
 	}
 
 	return msg, nil

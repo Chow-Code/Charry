@@ -153,7 +153,7 @@ func (n *Node) RegisterHandler(module, cmd uint32, handler MessageHandler) {
 }
 
 // SendReq 异步发送请求消息（不等待响应）
-func (n *Node) SendReq(req *tcp.ReqMsg) error {
+func (n *Node) SendReq(req *tcp.ClusterReqMsg) error {
 	pool := n.GetPool()
 	if pool == nil {
 		return fmt.Errorf("节点未连接")
@@ -167,7 +167,7 @@ func (n *Node) SendReq(req *tcp.ReqMsg) error {
 	defer pool.Put(conn) // 归还连接
 
 	// 编码并发送
-	data := tcp.EncodeReqMsg(req)
+	data := tcp.EncodeClusterReqMsg(req)
 	_, err = conn.Write(data)
 	if err != nil {
 		// 触发重连
@@ -341,10 +341,11 @@ func (n *Node) receiveLoop(conn net.Conn, connIndex int) {
 
 			// 分发消息
 			switch v := msg.(type) {
-			case *tcp.ReqMsg:
+			case *tcp.ClusterReqMsg:
 				// 收到请求消息（不应该发生，节点是客户端）
-				logger.Warnf("节点收到请求消息: module=%d, cmd=%d", v.Module, v.Cmd)
-			case *tcp.RespMsg:
+				logger.Warnf("节点收到请求消息: module=%d, cmd=%d, sessionId=%s",
+					v.Module, v.Cmd, v.SessionId)
+			case *tcp.ClusterRespMsg:
 				// 收到响应消息
 				if tcp.IsHeartbeatMsg(v.Module, v.Cmd) {
 					// 心跳响应，忽略
@@ -352,7 +353,7 @@ func (n *Node) receiveLoop(conn net.Conn, connIndex int) {
 				}
 				// 处理业务响应
 				if err := n.router.HandleResp(v); err != nil {
-					logger.Warnf("处理响应失败: %v", err)
+					logger.Warnf("处理响应失败: sessionId=%s, %v", v.SessionId, err)
 				}
 			}
 		}

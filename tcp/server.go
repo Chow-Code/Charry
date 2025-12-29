@@ -61,26 +61,28 @@ func (h *DefaultHandler) HandleConnection(conn net.Conn) {
 
 		// 处理消息
 		switch v := msg.(type) {
-		case *ReqMsg:
+		case *ClusterReqMsg:
 			// 处理请求消息
 			if IsHeartbeatMsg(v.Module, v.Cmd) {
 				// 处理心跳请求
 				HandleHeartbeatReq(conn, v)
 			} else {
 				// 处理业务请求（回显）
-				resp := &RespMsg{
-					Module:  v.Module,
-					Cmd:     v.Cmd,
-					Code:    0,
-					Payload: v.Payload,
+				resp := &ClusterRespMsg{
+					Module:    v.Module,
+					Cmd:       v.Cmd,
+					SessionId: v.SessionId,
+					Code:      0,
+					Payload:   v.Payload,
 				}
-				data := EncodeRespMsg(resp)
+				data := EncodeClusterRespMsg(resp)
 				conn.Write(data)
 			}
 
-		case *RespMsg:
+		case *ClusterRespMsg:
 			// 收到响应消息（客户端模式）
-			logger.Infof("收到响应: module=%d, cmd=%d, code=%d", v.Module, v.Cmd, v.Code)
+			logger.Infof("收到响应: module=%d, cmd=%d, sessionId=%s, code=%d",
+				v.Module, v.Cmd, v.SessionId, v.Code)
 		}
 	}
 }

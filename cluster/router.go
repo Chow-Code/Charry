@@ -59,12 +59,12 @@ func (r *Router) Handle(module, cmd uint32, payload []byte) error {
 }
 
 // HandleReq 处理请求消息
-func (r *Router) HandleReq(req *tcp.ReqMsg) error {
+func (r *Router) HandleReq(req *tcp.ClusterReqMsg) error {
 	return r.Handle(req.Module, req.Cmd, req.Payload)
 }
 
 // HandleResp 处理响应消息
-func (r *Router) HandleResp(resp *tcp.RespMsg) error {
+func (r *Router) HandleResp(resp *tcp.ClusterRespMsg) error {
 	return r.Handle(resp.Module, resp.Cmd, resp.Payload)
 }
 
